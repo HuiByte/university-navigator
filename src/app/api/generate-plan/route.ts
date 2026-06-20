@@ -62,6 +62,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 持久化用户画像（upsert：首次创建，后续更新）
+    // 容错处理：保存失败不阻断后续 AI 规划生成流程
+    try {
+      await prisma.userProfile.upsert({
+        where: { userId },
+        create: { userId, major, grade, degree, goal, strengths, weaknesses },
+        update: { major, grade, degree, goal, strengths, weaknesses },
+      })
+    } catch (dbError) {
+      console.error("保存用户画像到数据库失败:", dbError)
+    }
+
     // 初始化 OpenAI 兼容客户端（支持国内大模型）
     const openai = createOpenAI({
       apiKey: env.OPENAI_API_KEY,

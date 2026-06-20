@@ -55,6 +55,39 @@ function cleanJsonString(raw: string): string {
   return cleaned
 }
 
+/**
+ * 根据用户任务完成进度计算当前阶段索引
+ * 映射逻辑：n 阶段时 25%→0, 50%→1, 75%→2, 100%→n-1
+ * @param userId 用户 ID
+ * @param stagesData 路线图 stages JSON 数据
+ * @returns 当前阶段索引，无任务或无阶段时返回 0
+ */
+async function computeCurrentStageIndex(
+  userId: string,
+  stagesData: unknown
+): Promise<number> {
+  const roadmapData = stagesData as { stages?: unknown[] }
+  const stageCount = Array.isArray(roadmapData?.stages)
+    ? roadmapData.stages.length
+    : 0
+  if (stageCount === 0) return 0
+
+  // 查询用户任务进度（带 userId 过滤，防越权）
+  const [completedCount, totalCount] = await Promise.all([
+    prisma.dailyTask.count({ where: { userId, isCompleted: true } }),
+    prisma.dailyTask.count({ where: { userId } }),
+  ])
+
+  // 除零保护：用户还没有任何任务时，进度为 0
+  if (totalCount === 0) return 0
+
+  const progress = completedCount / totalCount
+  return Math.min(
+    Math.floor(progress * (stageCount - 1)),
+    stageCount - 1
+  )
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
@@ -152,7 +185,8 @@ ${latestPlan.content}
           },
         })
 
-    return Response.json({ data: roadmap.stages })
+    const currentStageIndex = await computeCurrentStageIndex(userId, roadmap.stages)
+    return Response.json({ data: roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("生成路线图失败:", error)
     return Response.json(
@@ -186,7 +220,8 @@ export async function GET() {
       return Response.json({ data: null, reason: "no_roadmap" })
     }
 
-    return Response.json({ data: latestPlan.roadmap.stages })
+    const currentStageIndex = await computeCurrentStageIndex(userId, latestPlan.roadmap.stages)
+    return Response.json({ data: latestPlan.roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("获取路线图失败:", error)
     return Response.json(

@@ -117,6 +117,7 @@ export default function RoadmapPage() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [noPlan, setNoPlan] = useState(false)
+  const [currentStageIndex, setCurrentStageIndex] = useState(-1)
 
   const fetchRoadmap = useCallback(async () => {
     setLoading(true)
@@ -138,6 +139,7 @@ export default function RoadmapPage() {
 
       if (json.data) {
         setRoadmap(json.data as RoadmapData)
+        setCurrentStageIndex(json.currentStageIndex ?? 0)
       }
     } catch {
       setError("网络请求失败，请检查网络连接")
@@ -160,6 +162,7 @@ export default function RoadmapPage() {
 
       if (json.data) {
         setRoadmap(json.data as RoadmapData)
+        setCurrentStageIndex(json.currentStageIndex ?? 0)
       }
     } catch {
       setError("网络请求失败，请检查网络连接")
@@ -172,11 +175,6 @@ export default function RoadmapPage() {
   useEffect(() => {
     fetchRoadmap()
   }, [fetchRoadmap])
-
-  // 判断当前阶段（简单策略：取第二个阶段为当前，若无则取第一个）
-  const currentStageIndex = roadmap
-    ? Math.min(1, roadmap.stages.length - 1)
-    : -1
 
   return (
     <div className="space-y-6">
