@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// 业务模型
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique // 🚨 关键修复 2：改为可选 (String?)，防止 GitHub 无邮箱报错
+  emailVerified DateTime?
+  image         String?
+  name          String?
+  createdAt     DateTime  @default(now())
+  
+  // Auth.js 关联
+  accounts      Account[]
+  sessions      Session[]
+  
+  // 业务关联
+  profile       UserProfile?
+  plans         Plan[]
+  tasks         DailyTask[]
+  checkIns      CheckInRecord[]
+}
+
+model UserProfile {
+  userId     String @id @unique
+  major      String // 专业
+  grade      String // 年级
+  degree     String // 学位（本科/硕士/博士）
+  goal       String @db.Text // 目标
+  strengths  String @db.Text // 优势
+  weaknesses String @db.Text // 劣势
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Plan {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roadmap   Roadmap?
+}
+
+model Roadmap {
+  id     String @id @default(cuid())
+  planId String @unique
+  stages Json   // 路线图节点数据
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model DailyTask {
+  id               String   @id @default(cuid())
+  userId           String
+  title            String
+  description      String   @default("") @db.Text
+  isCompleted      Boolean  @default(false)
+  priority         Int      @default(0)
+  estimatedMinutes Int      @default(30)
+  dueDate          DateTime
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CheckInRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  streakCount Int      @default(1)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// ============================================
+// Auth.js v5 核心模型
+// ============================================
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

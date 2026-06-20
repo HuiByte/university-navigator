@@ -1,0 +1,47 @@
+# ============================================
+# University Navigator - .gitignore
+# Next.js + Prisma + Node.js
+# ============================================
+
+# ---- 依赖 ----
+/node_modules
+/.pnp
+.pnp.js
+
+# ---- Next.js ----
+/.next/
+/out/
+
+# ---- 生产构建 ----
+/build
+
+# ---- Prisma 生成产物 ----
+/prisma/generated/
+
+# ---- 环境变量（保留 .env.example） ----
+.env
+.env.local
+.env.*.local
+
+# ---- TypeScript ----
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- 调试日志 ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---- 测试覆盖率 ----
+/coverage
+
+# ---- 杂项 ----
+.DS_Store
+*.pem
+Thumbs.db
+
+# ---- IDE ----
+.idea/
+*.swp
+*.swo

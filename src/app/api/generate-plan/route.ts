@@ -1,0 +1,109 @@
+import { NextRequest } from "next/server"
+import { generateText } from "ai"
+import { createOpenAI } from "@ai-sdk/openai"
+import { prisma } from "@/lib/prisma"
+import { getAuthenticatedUserId } from "@/lib/auth-utils"
+
+const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥有丰富的教育咨询和职业指导经验。你的任务是根据学生提供的个人信息，为其量身定制一份详细、可执行的大学规划方案。
+
+请按以下结构输出规划方案：
+
+## 📋 个人画像分析
+简要分析学生的专业背景、当前阶段和核心目标。
+
+## 🎯 短期目标（1-6个月）
+列出3-5个具体的短期目标，每个目标要SMART化（具体、可衡量、可达成、相关、有时限）。
+
+## 🏔️ 中期目标（6个月-1年）
+列出3-5个中期目标，关注能力提升和资源积累。
+
+## 🚀 长期目标（1年以上）
+列出2-3个长期目标，与最终职业方向对齐。
+
+## 📅 行动计划
+按时间线给出具体的行动建议，包括：
+- 学习计划（课程、书籍、在线资源）
+- 实践项目建议
+- 证书/考试时间节点
+- 实习/求职时间规划
+
+## 💡 优势发挥策略
+针对学生的优点，给出如何最大化利用优势的建议。
+
+## ⚠️ 劣势改善建议
+针对学生的缺点，给出具体的改善方法和替代策略。
+
+## 📚 推荐资源
+推荐相关的书籍、网站、工具和社区。
+
+注意事项：
+- 语气温暖鼓励，但建议要务实
+- 目标要切合实际，循序渐进
+- 充分考虑学生的专业特点和当前阶段
+- 如果信息不足，给出合理假设并标注
+- 用中文回答`
+
+export async function POST(request: NextRequest) {
+  try {
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { major, grade, degree, goal, strengths, weaknesses, extraInfo } = body
+
+    // 校验必填字段
+    if (!major || !grade || !degree || !goal || !strengths || !weaknesses) {
+      return Response.json(
+        { error: "缺少必填字段" },
+        { status: 400 }
+      )
+    }
+
+    // 初始化 OpenAI 兼容客户端（支持国内大模型）
+    const openai = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL,
+    })
+
+    // 构建用户消息
+    const userMessage = `请根据以下信息为我制定大学规划：
+
+**专业**：${major}
+**年级**：${grade}
+**学历**：${degree}
+**目标**：${goal}
+**优点**：${strengths}
+**缺点**：${weaknesses}
+${extraInfo ? `**补充信息**：${extraInfo}` : ""}
+
+请给出详细、可执行的规划方案。`
+
+    const result = await generateText({
+      model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
+      system: SYSTEM_PROMPT,
+      prompt: userMessage,
+    })
+
+    // 生成完成后，将完整规划内容保存到数据库
+    try {
+      await prisma.plan.create({
+        data: {
+          userId,
+          content: result.text,
+        },
+      })
+    } catch (dbError) {
+      console.error("保存规划到数据库失败:", dbError)
+    }
+
+    return Response.json({ success: true, plan: result.text })
+  } catch (error) {
+    console.error("生成规划失败:", error)
+    return Response.json(
+      { error: error instanceof Error ? error.message : "生成规划失败" },
+      { status: 500 }
+    )
+  }
+}
