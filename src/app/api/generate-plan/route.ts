@@ -3,6 +3,7 @@ import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { env } from "@/lib/env"
 
 const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥有丰富的教育咨询和职业指导经验。你的任务是根据学生提供的个人信息，为其量身定制一份详细、可执行的大学规划方案。
 
@@ -63,8 +64,8 @@ export async function POST(request: NextRequest) {
 
     // 初始化 OpenAI 兼容客户端（支持国内大模型）
     const openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_BASE_URL,
+      apiKey: env.OPENAI_API_KEY,
+      baseURL: env.OPENAI_BASE_URL,
     })
 
     // 构建用户消息
@@ -81,7 +82,7 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
 请给出详细、可执行的规划方案。`
 
     const result = await generateText({
-      model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
+      model: openai(env.OPENAI_MODEL),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
     })

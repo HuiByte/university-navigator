@@ -8,6 +8,7 @@
  */
 import GitHub from "next-auth/providers/github"
 import type { NextAuthConfig } from "next-auth"
+import { env } from "@/lib/env"
 
 /**
  * Auth.js 基础配置（Edge Runtime 安全）
@@ -15,6 +16,12 @@ import type { NextAuthConfig } from "next-auth"
  * 供 middleware.ts 在 Edge Runtime 中使用，避免 node:util/types 等原生模块报错。
  */
 export const authConfig = {
-  providers: [GitHub],
+  providers: [
+    GitHub({
+      clientId: env.AUTH_GITHUB_ID,
+      clientSecret: env.AUTH_GITHUB_SECRET,
+    }),
+  ],
   session: { strategy: "jwt" },
+  secret: env.AUTH_SECRET,
 } satisfies NextAuthConfig

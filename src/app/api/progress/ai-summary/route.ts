@@ -10,6 +10,7 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { env } from "@/lib/env"
 
 export async function POST() {
   try {
@@ -77,12 +78,12 @@ export async function POST() {
 - 用中文回答`
 
     const openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_BASE_URL,
+      apiKey: env.OPENAI_API_KEY,
+      baseURL: env.OPENAI_BASE_URL,
     })
 
     const result = streamText({
-      model: openai(process.env.OPENAI_MODEL || "deepseek-chat"),
+      model: openai(env.OPENAI_MODEL),
       system: systemPrompt,
       prompt: "请根据我的本周学习数据，生成一段总结。",
     })

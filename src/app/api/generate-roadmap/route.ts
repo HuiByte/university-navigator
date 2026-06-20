@@ -3,6 +3,7 @@ import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { env } from "@/lib/env"
 
 const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划拆解为可执行的分阶段路线图。
 
@@ -101,13 +102,13 @@ ${latestPlan.content}
 
     // 初始化 OpenAI 兼容客户端
     const openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_BASE_URL,
+      apiKey: env.OPENAI_API_KEY,
+      baseURL: env.OPENAI_BASE_URL,
     })
 
     // 使用 generateText 生成结构化 JSON
     const result = await generateText({
-      model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
+      model: openai(env.OPENAI_MODEL),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
     })
