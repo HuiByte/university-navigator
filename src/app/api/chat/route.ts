@@ -12,12 +12,22 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
       return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+    }
+
+    // 速率限制：每 userId 每分钟最多 5 次
+    const { success } = checkRateLimit(userId, 5, 60_000)
+    if (!success) {
+      return Response.json(
+        { error: "请求过于频繁，请稍后再试" },
+        { status: 429, headers: { "Retry-After": "60" } }
+      )
     }
 
     const body = await request.json()

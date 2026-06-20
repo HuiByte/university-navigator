@@ -2,7 +2,7 @@
  * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
  * @Date: 2026-06-18 13:55:53
  * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2026-06-19 10:15:08
+ * @LastEditTime: 2026-06-20 16:36:04
  * @FilePath: \AI创作力大赛\university-navigator\src\app\api\progress\ai-summary\route.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -11,12 +11,22 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
       return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+    }
+
+    // 速率限制：每 userId 每分钟最多 5 次
+    const { success } = checkRateLimit(userId, 5, 60_000)
+    if (!success) {
+      return Response.json(
+        { error: "请求过于频繁，请稍后再试" },
+        { status: 429, headers: { "Retry-After": "60" } }
+      )
     }
 
     const now = new Date()
