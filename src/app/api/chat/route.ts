@@ -1,11 +1,3 @@
-/*
- * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @Date: 2026-06-17 23:45:13
- * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2026-06-19 10:15:31
- * @FilePath: \AI创作力大赛\university-navigator\src\app\api\chat\route.ts
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 import { NextRequest } from "next/server"
 import { streamText, convertToModelMessages } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
@@ -13,21 +5,19 @@ import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { errorResponse } from "@/lib/api-response"
 
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
     const { success } = checkRateLimit(userId, 5, 60_000)
     if (!success) {
-      return Response.json(
-        { error: "请求过于频繁，请稍后再试" },
-        { status: 429, headers: { "Retry-After": "60" } }
-      )
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     const body = await request.json()
@@ -37,10 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!messages || !Array.isArray(messages)) {
-      return Response.json(
-        { error: "缺少 messages 字段" },
-        { status: 400 }
-      )
+      return errorResponse("VALIDATION_ERROR", "缺少 messages 字段")
     }
 
     // 将 UIMessage 格式转换为 ModelMessage 格式

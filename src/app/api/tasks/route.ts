@@ -1,14 +1,7 @@
-/*
- * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @Date: 2026-06-17 23:44:52
- * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2026-06-19 11:00:41
- * @FilePath: \AI创作力大赛\university-navigator\src\app\api\tasks\route.ts
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { errorResponse, successResponse } from "@/lib/api-response"
 import { z } from "zod"
 
 // 创建任务校验：title 必填，dueDate 缺省为今天，priority/estimatedMinutes 可选
@@ -25,7 +18,7 @@ export async function GET() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     const today = new Date()
@@ -58,7 +51,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     const body = await request.json()
@@ -103,7 +96,7 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     const body = await request.json()

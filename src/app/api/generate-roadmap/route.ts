@@ -6,6 +6,7 @@ import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { RoadmapSchema } from "@/lib/ai-schemas"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划拆解为可执行的分阶段路线图。
 
@@ -56,16 +57,13 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
     const { success } = checkRateLimit(userId, 5, 60_000)
     if (!success) {
-      return Response.json(
-        { error: "请求过于频繁，请稍后再试" },
-        { status: 429, headers: { "Retry-After": "60" } }
-      )
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     // 获取用户最新的 Plan 和 UserProfile
@@ -80,10 +78,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!latestPlan) {
-      return Response.json(
-        { error: "请先完成规划生成" },
-        { status: 400 }
-      )
+      return errorResponse("VALIDATION_ERROR", "请先完成规划生成")
     }
 
     // 检查是否已有路线图（支持重新生成）

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥有丰富的教育咨询和职业指导经验。你的任务是根据学生提供的个人信息，为其量身定制一份详细、可执行的大学规划方案。
 
@@ -49,16 +50,13 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
     const { success } = checkRateLimit(userId, 5, 60_000)
     if (!success) {
-      return Response.json(
-        { error: "请求过于频繁，请稍后再试" },
-        { status: 429, headers: { "Retry-After": "60" } }
-      )
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     const body = await request.json()

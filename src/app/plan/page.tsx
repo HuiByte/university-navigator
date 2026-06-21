@@ -52,14 +52,11 @@ export default function PlanPage() {
     setGenerateError(null)
 
     try {
-      console.log("1. 开始发送请求，参数:", data)
       const response = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
-
-      console.log("2. 收到响应，状态码:", response.status)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -69,7 +66,6 @@ export default function PlanPage() {
       }
 
       const result = await response.json()
-      console.log("3. 解析后的完整数据:", result)
 
       setGeneratedPlan(result.plan || "")
     } catch (error) {

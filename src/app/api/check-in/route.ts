@@ -1,13 +1,6 @@
-/*
- * @Author: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @Date: 2026-06-19 11:01:08
- * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
- * @LastEditTime: 2026-06-19 11:26:56
- * @FilePath: \AI创作力大赛\university-navigator\src\app\api\check-in\route.ts
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // POST: 每日打卡，记录学习并更新连续打卡天数（streak）
 export async function POST() {
@@ -59,6 +52,6 @@ export async function POST() {
     )
   } catch (error) {
     console.error("打卡失败:", error)
-    return Response.json({ error: "打卡失败" }, { status: 500 })
+    return errorResponse("INTERNAL_ERROR", "打卡失败")
   }
 }
