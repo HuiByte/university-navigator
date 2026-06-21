@@ -77,7 +77,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
 // 移动端顶部导航栏
 export function MobileTopBar() {
-  const { isMobileOpen, setMobileOpen } = useSidebar()
+  const { setMobileOpen } = useSidebar()
 
   return (
     <div className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 md:hidden">

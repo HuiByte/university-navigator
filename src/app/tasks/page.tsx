@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AIChatDrawer } from "@/components/AIChatDrawer"
 import { cn } from "@/lib/utils"
-import { Check, HelpCircle, Loader2, Plus, Clock, AlertTriangle, RefreshCw } from "lucide-react"
+import { Check, HelpCircle, Plus, Clock, AlertTriangle, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-client"
 
@@ -110,7 +110,6 @@ export default function TasksPage() {
     energy === "low" && task.estimatedMinutes > 45 && !task.isCompleted
 
   const greeting = getGreeting()
-  const energyConfig = getEnergyConfig(energy)
 
   return (
     <div className="space-y-6">

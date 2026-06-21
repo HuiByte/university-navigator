@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
       return errorResponse("VALIDATION_ERROR", "缺少 messages 字段")
     }
 
-    // 将 UIMessage 格式转换为 ModelMessage 格式
+    // 将 UIMessage 格式转换为 ModelMessage 格式（id 字段由 SDK 内部处理）
     const modelMessages = await convertToModelMessages(
-      messages.map(({ id, ...rest }) => rest) as Parameters<typeof convertToModelMessages>[0]
+      messages as Parameters<typeof convertToModelMessages>[0]
     )
 
     // 查询当前用户的今日任务列表，作为上下文注入

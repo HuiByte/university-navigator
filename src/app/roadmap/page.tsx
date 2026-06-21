@@ -57,7 +57,7 @@ function TimelineSkeleton() {
 }
 
 // 时间轴阶段卡片
-function StageCard({ stage, index, isCurrent }: { stage: Stage; index: number; isCurrent: boolean }) {
+function StageCard({ stage, isCurrent }: { stage: Stage; isCurrent: boolean }) {
   return (
     <div className="relative mb-8 last:mb-0 group">
       {/* 时间轴节点 */}
@@ -263,7 +263,6 @@ export default function RoadmapPage() {
               <StageCard
                 key={index}
                 stage={stage}
-                index={index}
                 isCurrent={index === currentStageIndex}
               />
             ))}

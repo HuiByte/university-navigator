@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server"
 import { generateObject } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
@@ -49,7 +48,7 @@ async function resolveCurrentStageIndex(
   return computeCurrentStageIndex(stageCount, completedCount, totalCount)
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
@@ -125,18 +124,15 @@ ${latestPlan.content}
         })
 
     const currentStageIndex = await resolveCurrentStageIndex(userId, roadmap.stages)
-    return Response.json({ data: roadmap.stages, currentStageIndex })
+    return successResponse({ data: roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("生成路线图失败:", error)
     const message = error instanceof Error ? error.message : "生成路线图失败"
     // generateObject 校验失败时返回明确的格式异常提示
     if (message.includes("schema") || message.includes("JSON") || message.includes("parse")) {
-      return Response.json(
-        { error: "AI 规划格式异常，请重试" },
-        { status: 500 }
-      )
+      return errorResponse("AI_GENERATION_FAILED", "AI 规划格式异常，请重试")
     }
-    return Response.json({ error: message }, { status: 500 })
+    return errorResponse("INTERNAL_ERROR", message)
   }
 }
 
@@ -147,7 +143,7 @@ export async function GET() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     const latestPlan = await prisma.plan.findFirst({
@@ -157,20 +153,17 @@ export async function GET() {
     })
 
     if (!latestPlan) {
-      return Response.json({ data: null, reason: "no_plan" })
+      return successResponse({ data: null, reason: "no_plan" })
     }
 
     if (!latestPlan.roadmap) {
-      return Response.json({ data: null, reason: "no_roadmap" })
+      return successResponse({ data: null, reason: "no_roadmap" })
     }
 
     const currentStageIndex = await resolveCurrentStageIndex(userId, latestPlan.roadmap.stages)
-    return Response.json({ data: latestPlan.roadmap.stages, currentStageIndex })
+    return successResponse({ data: latestPlan.roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("获取路线图失败:", error)
-    return Response.json(
-      { error: error instanceof Error ? error.message : "获取路线图失败" },
-      { status: 500 }
-    )
+    return errorResponse("INTERNAL_ERROR", error instanceof Error ? error.message : "获取路线图失败")
   }
 }
