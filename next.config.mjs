@@ -11,6 +11,14 @@ const nextConfig = {
   // 将 Prisma 及其底层驱动排除在 Server Components 打包之外，
   // 避免 Next.js 将 Node.js 原生模块（node:path / node:url 等）打包到客户端或 Edge 环境
   serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'pg'],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+    ],
+  },
 }
 
 export default nextConfig

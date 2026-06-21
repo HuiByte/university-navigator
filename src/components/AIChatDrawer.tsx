@@ -18,6 +18,8 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
   const scrollRef = useRef<HTMLDivElement>(null)
   const initialMessageSent = useRef(false)
   const [input, setInput] = useState("")
+  // 标记是否正在处理"卡壳了"触发的初始任务分析
+  const [analyzingTask, setAnalyzingTask] = useState(false)
 
   const transport = useMemo(() => new DefaultChatTransport({
     api: "/api/chat",
@@ -30,13 +32,21 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
 
   const isLoading = status === "submitted" || status === "streaming"
 
-  // 当 initialMessage 变化时，自动发送预设消息
+  // 当 initialMessage 变化时，自动发送预设消息（"卡壳了"场景）
   useEffect(() => {
     if (initialMessage && !initialMessageSent.current) {
       initialMessageSent.current = true
+      setAnalyzingTask(true)
       sendMessage({ text: initialMessage })
     }
   }, [initialMessage, sendMessage])
+
+  // 当 AI 开始流式输出或回到就绪状态时，结束"正在分析"提示
+  useEffect(() => {
+    if (status === "streaming" || status === "ready") {
+      setAnalyzingTask(false)
+    }
+  }, [status])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -130,9 +140,9 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
           })}
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
-              <div className="flex items-center gap-1 rounded-2xl bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5 rounded-2xl bg-muted px-4 py-2.5 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>思考中...</span>
+                <span>{analyzingTask ? "正在分析当前任务..." : "思考中..."}</span>
               </div>
             </div>
           )}

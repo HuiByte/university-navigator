@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AIChatDrawer } from "@/components/AIChatDrawer"
 import { cn } from "@/lib/utils"
 import { Check, HelpCircle, Loader2, Plus, Clock, AlertTriangle, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-client"
 
 // ---- 类型定义 ----
 type DailyTask = {
@@ -53,15 +55,12 @@ export default function TasksPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch("/api/tasks")
-      if (res.ok) {
-        const { data } = await res.json()
-        setTasks(data || [])
-      } else {
-        setError("获取任务失败，请稍后重试")
-      }
-    } catch {
-      setError("网络请求失败，请检查网络连接")
+      const data = await apiFetch<DailyTask[]>("/api/tasks", { showToast: false })
+      setTasks(data || [])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "获取任务失败"
+      toast.error(message)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -78,13 +77,13 @@ export default function TasksPage() {
       prev.map((t) => (t.id === taskId ? { ...t, isCompleted: !currentCompleted } : t))
     )
     try {
-      await fetch("/api/tasks", {
+      await apiFetch("/api/tasks", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, isCompleted: !currentCompleted }),
+        body: { taskId, isCompleted: !currentCompleted },
+        showToast: false,
       })
     } catch (error) {
-      console.error("更新任务状态失败:", error)
+      toast.error(error instanceof Error ? error.message : "更新任务状态失败")
       // 回滚
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, isCompleted: currentCompleted } : t))

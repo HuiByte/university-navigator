@@ -7,6 +7,7 @@ import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { RoadmapSchema } from "@/lib/ai-schemas"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { computeCurrentStageIndex } from "@/lib/roadmap-utils"
 
 const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划拆解为可执行的分阶段路线图。
 
@@ -21,13 +22,13 @@ const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划
 6. 目标和行动要具体、可衡量、可执行`
 
 /**
- * 根据用户任务完成进度计算当前阶段索引
- * 映射逻辑：n 阶段时 25%→0, 50%→1, 75%→2, 100%→n-1
+ * 查询用户任务进度并计算当前阶段索引
+ * 负责数据库查询（带 userId 过滤防越权），阶段索引计算委托给纯函数 computeCurrentStageIndex
  * @param userId 用户 ID
  * @param stagesData 路线图 stages JSON 数据
  * @returns 当前阶段索引，无任务或无阶段时返回 0
  */
-async function computeCurrentStageIndex(
+async function resolveCurrentStageIndex(
   userId: string,
   stagesData: unknown
 ): Promise<number> {
@@ -35,6 +36,7 @@ async function computeCurrentStageIndex(
   const stageCount = Array.isArray(roadmapData?.stages)
     ? roadmapData.stages.length
     : 0
+  // 无阶段时无需查库，直接返回 0
   if (stageCount === 0) return 0
 
   // 查询用户任务进度（带 userId 过滤，防越权）
@@ -43,14 +45,8 @@ async function computeCurrentStageIndex(
     prisma.dailyTask.count({ where: { userId } }),
   ])
 
-  // 除零保护：用户还没有任何任务时，进度为 0
-  if (totalCount === 0) return 0
-
-  const progress = completedCount / totalCount
-  return Math.min(
-    Math.floor(progress * (stageCount - 1)),
-    stageCount - 1
-  )
+  // 阶段索引计算委托给纯函数（除零、边界保护在纯函数内处理）
+  return computeCurrentStageIndex(stageCount, completedCount, totalCount)
 }
 
 export async function POST(request: NextRequest) {
@@ -128,7 +124,7 @@ ${latestPlan.content}
           },
         })
 
-    const currentStageIndex = await computeCurrentStageIndex(userId, roadmap.stages)
+    const currentStageIndex = await resolveCurrentStageIndex(userId, roadmap.stages)
     return Response.json({ data: roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("生成路线图失败:", error)
@@ -168,7 +164,7 @@ export async function GET() {
       return Response.json({ data: null, reason: "no_roadmap" })
     }
 
-    const currentStageIndex = await computeCurrentStageIndex(userId, latestPlan.roadmap.stages)
+    const currentStageIndex = await resolveCurrentStageIndex(userId, latestPlan.roadmap.stages)
     return Response.json({ data: latestPlan.roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("获取路线图失败:", error)

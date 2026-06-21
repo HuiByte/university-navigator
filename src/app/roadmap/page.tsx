@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-client"
 
 interface Stage {
   title: string
@@ -124,13 +126,11 @@ export default function RoadmapPage() {
     setError(null)
     setNoPlan(false)
     try {
-      const res = await fetch("/api/generate-roadmap")
-      const json = await res.json()
-
-      if (!res.ok) {
-        setError(json.error || "获取路线图失败")
-        return
-      }
+      const json = await apiFetch<{
+        data: RoadmapData | null
+        reason?: string
+        currentStageIndex?: number
+      }>("/api/generate-roadmap", { showToast: false })
 
       if (json.reason === "no_plan") {
         setNoPlan(true)
@@ -138,11 +138,13 @@ export default function RoadmapPage() {
       }
 
       if (json.data) {
-        setRoadmap(json.data as RoadmapData)
+        setRoadmap(json.data)
         setCurrentStageIndex(json.currentStageIndex ?? 0)
       }
-    } catch {
-      setError("网络请求失败，请检查网络连接")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "获取路线图失败"
+      toast.error(message)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -152,20 +154,19 @@ export default function RoadmapPage() {
     setGenerating(true)
     setError(null)
     try {
-      const res = await fetch("/api/generate-roadmap", { method: "POST" })
-      const json = await res.json()
-
-      if (!res.ok) {
-        setError(json.error || "生成路线图失败")
-        return
-      }
+      const json = await apiFetch<{
+        data: RoadmapData | null
+        currentStageIndex?: number
+      }>("/api/generate-roadmap", { method: "POST", showToast: false })
 
       if (json.data) {
-        setRoadmap(json.data as RoadmapData)
+        setRoadmap(json.data)
         setCurrentStageIndex(json.currentStageIndex ?? 0)
       }
-    } catch {
-      setError("网络请求失败，请检查网络连接")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成路线图失败"
+      toast.error(message)
+      setError(message)
     } finally {
       setGenerating(false)
     }

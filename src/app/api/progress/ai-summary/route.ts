@@ -4,21 +4,19 @@ import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { errorResponse } from "@/lib/api-response"
 
 export async function POST() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
     const { success } = checkRateLimit(userId, 5, 60_000)
     if (!success) {
-      return Response.json(
-        { error: "请求过于频繁，请稍后再试" },
-        { status: 429, headers: { "Retry-After": "60" } }
-      )
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     const now = new Date()
@@ -93,9 +91,9 @@ export async function POST() {
     return result.toTextStreamResponse()
   } catch (error) {
     console.error("AI 周报总结失败:", error)
-    return Response.json(
-      { error: error instanceof Error ? error.message : "AI 周报总结失败" },
-      { status: 500 }
+    return errorResponse(
+      "AI_GENERATION_FAILED",
+      error instanceof Error ? error.message : "AI 周报总结失败"
     )
   }
 }

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { verifyTaskOwnership } from "@/lib/task-utils"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { z } from "zod"
 
 // 创建任务校验：title 必填，dueDate 缺省为今天，priority/estimatedMinutes 可选
@@ -36,13 +38,10 @@ export async function GET() {
       orderBy: [{ priority: "desc" }, { id: "asc" }],
     })
 
-    return Response.json({ data: tasks })
+    return successResponse(tasks)
   } catch (error) {
     console.error("获取任务列表失败:", error)
-    return Response.json(
-      { error: "获取任务列表失败" },
-      { status: 500 }
-    )
+    return errorResponse("INTERNAL_ERROR", "获取任务列表失败")
   }
 }
 
@@ -58,22 +57,17 @@ export async function PATCH(request: NextRequest) {
     const { taskId, isCompleted } = body
 
     if (!taskId || typeof isCompleted !== "boolean") {
-      return Response.json(
-        { error: "缺少必填字段 taskId 或 isCompleted" },
-        { status: 400 }
-      )
+      return errorResponse("VALIDATION_ERROR", "缺少必填字段 taskId 或 isCompleted")
     }
 
-    // 校验任务归属权，防止水平越权（其他用户篡改不属于自己的任务）
+    // 查询任务归属人（仅取 userId，用于越权校验）
     const existing = await prisma.dailyTask.findFirst({
-      where: { id: taskId, userId },
-      select: { id: true },
+      where: { id: taskId },
+      select: { userId: true },
     })
-    if (!existing) {
-      return Response.json(
-        { error: "任务不存在或无权操作" },
-        { status: 404 }
-      )
+    // 校验任务归属权，防止水平越权（其他用户篡改不属于自己的任务）
+    if (!verifyTaskOwnership(existing?.userId ?? null, userId)) {
+      return errorResponse("NOT_FOUND", "任务不存在或无权操作")
     }
 
     const updated = await prisma.dailyTask.update({
@@ -81,13 +75,10 @@ export async function PATCH(request: NextRequest) {
       data: { isCompleted },
     })
 
-    return Response.json({ data: updated })
+    return successResponse(updated)
   } catch (error) {
     console.error("更新任务状态失败:", error)
-    return Response.json(
-      { error: "更新任务状态失败" },
-      { status: 500 }
-    )
+    return errorResponse("INTERNAL_ERROR", "更新任务状态失败")
   }
 }
 
@@ -99,13 +90,16 @@ export async function POST(request: NextRequest) {
       return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
+    // 速率限制：每用户每分钟最多 30 次写入，防止恶意刷数据
+    const { success } = checkRateLimit(userId, 30, 60_000)
+    if (!success) {
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
+    }
+
     const body = await request.json()
     const parsed = createTaskSchema.safeParse(body)
     if (!parsed.success) {
-      return Response.json(
-        { error: "输入校验失败", details: parsed.error.flatten() },
-        { status: 400 }
-      )
+      return errorResponse("VALIDATION_ERROR", "输入校验失败")
     }
 
     // dueDate 缺省为今天（每日任务场景）
@@ -123,12 +117,9 @@ export async function POST(request: NextRequest) {
     })
 
     console.info(`用户 ${userId} 创建任务: ${task.id}`)
-    return Response.json({ data: task }, { status: 201 })
+    return successResponse(task, { status: 201 })
   } catch (error) {
     console.error("创建任务失败:", error)
-    return Response.json(
-      { error: "创建任务失败" },
-      { status: 500 }
-    )
+    return errorResponse("INTERNAL_ERROR", "创建任务失败")
   }
 }

@@ -64,10 +64,7 @@ export async function POST(request: NextRequest) {
 
     // 校验必填字段
     if (!major || !grade || !degree || !goal || !strengths || !weaknesses) {
-      return Response.json(
-        { error: "缺少必填字段" },
-        { status: 400 }
-      )
+      return errorResponse("VALIDATION_ERROR", "缺少必填字段")
     }
 
     // 持久化用户画像（upsert：首次创建，后续更新）
@@ -119,12 +116,12 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
       console.error("保存规划到数据库失败:", dbError)
     }
 
-    return Response.json({ success: true, plan: result.text })
+    return successResponse({ plan: result.text })
   } catch (error) {
     console.error("生成规划失败:", error)
-    return Response.json(
-      { error: error instanceof Error ? error.message : "生成规划失败" },
-      { status: 500 }
+    return errorResponse(
+      "AI_GENERATION_FAILED",
+      error instanceof Error ? error.message : "生成规划失败"
     )
   }
 }

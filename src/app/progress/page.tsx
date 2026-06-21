@@ -32,6 +32,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-client"
 
 // ---- 类型定义 ----
 type ProgressData = {
@@ -77,15 +79,12 @@ export default function ProgressPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch("/api/progress")
-      if (res.ok) {
-        const { data } = await res.json()
-        setData(data)
-      } else {
-        setError("获取进度数据失败")
-      }
-    } catch {
-      setError("网络请求失败，请检查网络连接")
+      const data = await apiFetch<ProgressData>("/api/progress", { showToast: false })
+      setData(data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "获取进度数据失败"
+      toast.error(message)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -101,8 +100,11 @@ export default function ProgressPage() {
     setAiLoading(true)
     setAiSummary("")
     try {
-      const res = await fetch("/api/progress/ai-summary", { method: "POST" })
-      if (!res.ok || !res.body) {
+      const res = await apiFetch<Response>("/api/progress/ai-summary", {
+        method: "POST",
+        showToast: false,
+      })
+      if (!res.body) {
         setAiSummary("生成失败，请稍后重试")
         return
       }
@@ -117,7 +119,7 @@ export default function ProgressPage() {
         }
       }
     } catch (error) {
-      console.error("AI 总结失败:", error)
+      toast.error(error instanceof Error ? error.message : "AI 总结生成失败")
       setAiSummary("生成失败，请稍后重试")
     } finally {
       setAiLoading(false)

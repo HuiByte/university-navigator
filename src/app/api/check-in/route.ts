@@ -1,13 +1,21 @@
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { calculateStreak } from "@/lib/checkin-utils"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 // POST: 每日打卡，记录学习并更新连续打卡天数（streak）
 export async function POST() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
+    }
+
+    // 速率限制：每用户每分钟最多 30 次写入，防止恶意刷数据
+    const { success } = checkRateLimit(userId, 30, 60_000)
+    if (!success) {
+      return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     const today = new Date()
@@ -19,23 +27,28 @@ export async function POST() {
     })
 
     if (existingCheckIn) {
-      return Response.json({
+      return successResponse({
         message: "今天已经打过卡啦！",
-        data: existingCheckIn,
+        checkIn: existingCheckIn,
         streak: existingCheckIn.streakCount,
       })
     }
 
-    // 查询昨天的打卡记录以计算连续天数
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    const yesterdayCheckIn = await prisma.checkInRecord.findUnique({
-      where: { userId_date: { userId, date: yesterday } },
+    // 查询最近 365 天的历史打卡记录，按时间倒序（用于连续天数计算）
+    const recentCheckIns = await prisma.checkInRecord.findMany({
+      where: {
+        userId,
+        date: { gte: new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000) },
+      },
+      select: { date: true },
+      orderBy: { date: "desc" },
     })
 
-    // 昨天有打卡记录则 streak +1，否则重置为 1
-    const newStreak = yesterdayCheckIn ? yesterdayCheckIn.streakCount + 1 : 1
+    // 连续打卡天数计算委托给纯函数（今天打卡算 1 天，向前回溯连续记录）
+    const newStreak = calculateStreak(
+      recentCheckIns.map((r) => r.date),
+      today
+    )
 
     const checkIn = await prisma.checkInRecord.create({
       data: {
@@ -46,8 +59,8 @@ export async function POST() {
     })
 
     console.info(`用户 ${userId} 打卡成功，连续 ${newStreak} 天`)
-    return Response.json(
-      { message: "打卡成功！", data: checkIn, streak: newStreak },
+    return successResponse(
+      { message: "打卡成功！", checkIn, streak: newStreak },
       { status: 201 }
     )
   } catch (error) {

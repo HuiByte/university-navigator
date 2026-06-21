@@ -16,4 +16,14 @@ export const authConfig = {
   ],
   session: { strategy: "jwt" },
   secret: env.AUTH_SECRET,
+  callbacks: {
+    // JWT 策略下 token.sub 即用户 ID，注入 session.user.id
+    // 解决 GitHub 登录无 email 时 getAuthenticatedUserId 返回 null 的鉴权失效问题
+    session({ session, token }) {
+      if (token.sub && session.user) {
+        session.user.id = token.sub
+      }
+      return session
+    },
+  },
 } satisfies NextAuthConfig

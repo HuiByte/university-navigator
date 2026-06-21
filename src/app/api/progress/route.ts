@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 export async function GET() {
   try {
     const userId = await getAuthenticatedUserId()
     if (!userId) {
-      return Response.json({ error: "未登录，请先登录" }, { status: 401 })
+      return errorResponse("UNAUTHORIZED", "未登录，请先登录")
     }
 
     const now = new Date()
@@ -102,21 +103,16 @@ export async function GET() {
       lastWeek: lastWeekTrend[i]?.completed || 0,
     }))
 
-    return Response.json({
-      data: {
-        totalStudyDays,
-        completedTasks,
-        totalTasks,
-        completionRate,
-        currentStreak,
-        trendData,
-      },
+    return successResponse({
+      totalStudyDays,
+      completedTasks,
+      totalTasks,
+      completionRate,
+      currentStreak,
+      trendData,
     })
   } catch (error) {
     console.error("获取进度数据失败:", error)
-    return Response.json(
-      { error: "获取进度数据失败" },
-      { status: 500 }
-    )
+    return errorResponse("INTERNAL_ERROR", "获取进度数据失败")
   }
 }

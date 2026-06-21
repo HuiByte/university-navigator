@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Loader2, AlertTriangle } from "lucide-react"
+import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-client"
 
 const planFormSchema = z.object({
   major: z.string().min(1, "请输入你的专业"),
@@ -52,25 +54,17 @@ export default function PlanPage() {
     setGenerateError(null)
 
     try {
-      const response = await fetch("/api/generate-plan", {
+      const result = await apiFetch<{ plan: string }>("/api/generate-plan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: data,
+        showToast: false,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("请求失败，错误信息:", errorData)
-        setGenerateError(errorData.error || "生成失败，请稍后重试")
-        return
-      }
-
-      const result = await response.json()
 
       setGeneratedPlan(result.plan || "")
     } catch (error) {
-      console.error("网络请求失败:", error)
-      setGenerateError("网络请求失败，请检查网络连接")
+      const message = error instanceof Error ? error.message : "生成失败，请稍后重试"
+      toast.error(message)
+      setGenerateError(message)
     } finally {
       setIsGenerating(false)
     }
