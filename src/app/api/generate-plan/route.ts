@@ -8,6 +8,10 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { generatePlanSchema } from "@/lib/ai-schemas"
 
+// Vercel Serverless Function 最大执行时长（秒）
+// DeepSeek 生成长文本规划通常需要 15-30s，Hobby 计划默认 10s 会超时
+export const maxDuration = 60
+
 const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥有丰富的教育咨询和职业指导经验。你的任务是根据学生提供的个人信息，为其量身定制一份详细、可执行的大学规划方案。
 
 请按以下结构输出规划方案：
@@ -90,9 +94,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 初始化 OpenAI 兼容客户端（支持国内大模型）
+    // compatibility: 'compatible' 强制使用 Chat Completions API（/v1/chat/completions）
+    // 否则 @ai-sdk/openai v3 默认走 Responses API（/v1/responses），DeepSeek 不支持该端点会返回 404
     const openai = createOpenAI({
       apiKey: env.OPENAI_API_KEY,
       baseURL: env.OPENAI_BASE_URL,
+      compatibility: "compatible",
     })
 
     // 构建用户消息
@@ -129,9 +136,24 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
     return successResponse({ plan: result.text, warnings })
   } catch (error) {
     console.error("生成规划失败:", error)
-    return errorResponse(
-      "AI_GENERATION_FAILED",
-      error instanceof Error ? error.message : "生成规划失败"
-    )
+
+    const errorMessage = error instanceof Error ? error.message : "生成规划失败"
+
+    // 上游 AI API 返回 404 时，error.message 通常为 "Not Found"
+    // 常见原因：OPENAI_BASE_URL 配置错误（尾部斜杠、完整端点路径、拼写错误等）
+    if (errorMessage.includes("Not Found") || errorMessage.includes("404")) {
+      console.error(
+        "AI 接口返回 404，请检查 OPENAI_BASE_URL 配置。当前值:",
+        env.OPENAI_BASE_URL,
+        "模型:",
+        env.OPENAI_MODEL
+      )
+      return errorResponse(
+        "AI_GENERATION_FAILED",
+        "AI 服务接口无法访问，请检查服务端 OPENAI_BASE_URL 环境变量配置是否正确"
+      )
+    }
+
+    return errorResponse("AI_GENERATION_FAILED", errorMessage)
   }
 }

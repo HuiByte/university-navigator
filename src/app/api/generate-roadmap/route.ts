@@ -97,9 +97,11 @@ ${latestPlan.content}
 请生成包含 3-5 个阶段的路线图。`
 
     // 初始化 OpenAI 兼容客户端
+    // compatibility: 'compatible' 强制使用 Chat Completions API，DeepSeek 不支持 Responses API
     const openai = createOpenAI({
       apiKey: env.OPENAI_API_KEY,
       baseURL: env.OPENAI_BASE_URL,
+      compatibility: "compatible",
     })
 
     // 使用 generateObject 生成结构化 JSON，AI SDK 内部自动解析并校验
