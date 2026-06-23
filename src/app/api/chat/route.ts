@@ -101,8 +101,7 @@ ${energyLabel}
     console.error("AI 对话失败:", error)
     return errorResponse(
       "AI_GENERATION_FAILED",
-      "Failed to generate chat response. Please try again.",
-      500
+      "Failed to generate chat response. Please try again."
     )
   }
 }
