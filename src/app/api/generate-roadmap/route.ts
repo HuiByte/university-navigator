@@ -1,10 +1,10 @@
-import { generateObject } from "ai"
+import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { RoadmapSchema } from "@/lib/ai-schemas"
+import { RoadmapSchema, type RoadmapData } from "@/lib/ai-schemas"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { computeCurrentStageIndex } from "@/lib/roadmap-utils"
 
@@ -103,13 +103,28 @@ ${latestPlan.content}
       baseURL: env.OPENAI_BASE_URL,
     })
 
-    // 使用 generateObject 生成结构化 JSON，AI SDK 内部自动解析并校验
-    const { object: roadmapData } = await generateObject({
+    // 使用 generateText 生成 JSON 文本，再手动解析校验
+    // 不使用 generateObject：它默认发送 response_format: { type: 'json_schema' }，
+    // DeepSeek 不支持 json_schema 模式，只支持 json_object，会返回 400
+    const result = await generateText({
       model: openai.chat(env.OPENAI_MODEL),
-      schema: RoadmapSchema,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + `\n\n请以纯 JSON 格式输出，不要包含 markdown 代码块标记。JSON 结构如下：\n${JSON.stringify(RoadmapSchema.shape)}`,
       prompt: userMessage,
     })
+
+    // 从 AI 响应中提取并校验 JSON
+    let roadmapData: RoadmapData
+    try {
+      // 尝试从响应文本中提取 JSON（兼容 markdown 代码块包裹的情况）
+      const text = result.text.trim()
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text]
+      const jsonStr = jsonMatch[1].trim()
+      const parsed = JSON.parse(jsonStr)
+      roadmapData = RoadmapSchema.parse(parsed)
+    } catch (parseError) {
+      console.error("路线图 JSON 解析/校验失败:", parseError)
+      return errorResponse("AI_GENERATION_FAILED", "AI 规划格式异常，请重试")
+    }
 
     // 保存到数据库（更新或创建）
     const roadmap = existingRoadmap
