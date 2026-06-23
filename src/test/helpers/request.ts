@@ -21,7 +21,7 @@ export function makeRequest(
   if (body !== undefined) {
     reqInit.body = JSON.stringify(body)
   }
-  return new NextRequest(new URL(path, "http://localhost:3000"), reqInit)
+  return new NextRequest(new URL(path, "http://localhost:3000"), reqInit as any)
 }
 
 /**
