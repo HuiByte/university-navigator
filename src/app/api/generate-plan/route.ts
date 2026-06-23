@@ -94,12 +94,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 初始化 OpenAI 兼容客户端（支持国内大模型）
-    // compatibility: 'compatible' 强制使用 Chat Completions API（/v1/chat/completions）
-    // 否则 @ai-sdk/openai v3 默认走 Responses API（/v1/responses），DeepSeek 不支持该端点会返回 404
+    // 注意：@ai-sdk/openai v3 的 openai(model) 默认走 Responses API（/v1/responses），
+    // DeepSeek 不支持该端点，需使用 openai.chat(model) 切换到 Chat Completions API（/v1/chat/completions）
     const openai = createOpenAI({
       apiKey: env.OPENAI_API_KEY,
       baseURL: env.OPENAI_BASE_URL,
-      compatibility: "compatible",
     })
 
     // 构建用户消息
@@ -116,7 +115,7 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
 请给出详细、可执行的规划方案。`
 
     const result = await generateText({
-      model: openai(env.OPENAI_MODEL),
+      model: openai.chat(env.OPENAI_MODEL),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
     })

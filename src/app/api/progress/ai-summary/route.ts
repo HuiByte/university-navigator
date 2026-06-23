@@ -80,11 +80,10 @@ export async function POST() {
     const openai = createOpenAI({
       apiKey: env.OPENAI_API_KEY,
       baseURL: env.OPENAI_BASE_URL,
-      compatibility: "compatible",
     })
 
     const result = streamText({
-      model: openai(env.OPENAI_MODEL),
+      model: openai.chat(env.OPENAI_MODEL),
       system: systemPrompt,
       prompt: "请根据我的本周学习数据，生成一段总结。",
       onError({ error }) {
