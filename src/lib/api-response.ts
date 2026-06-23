@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "AI_GENERATION_FAILED"
+  | "ALREADY_CHECKED_IN"
   | "INTERNAL_ERROR"
 
 /** 统一错误响应结构 */
@@ -38,6 +39,7 @@ const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   AI_GENERATION_FAILED: 502,
+  ALREADY_CHECKED_IN: 409,
   INTERNAL_ERROR: 500,
 }
 

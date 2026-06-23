@@ -27,11 +27,7 @@ export async function POST() {
     })
 
     if (existingCheckIn) {
-      return successResponse({
-        message: "今天已经打过卡啦！",
-        checkIn: existingCheckIn,
-        streak: existingCheckIn.streakCount,
-      })
+      return errorResponse("ALREADY_CHECKED_IN", "今天已经打过卡啦！")
     }
 
     // 查询最近 365 天的历史打卡记录，按时间倒序（用于连续天数计算）
