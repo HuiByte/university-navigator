@@ -1,8 +1,6 @@
 import { defineConfig } from "vitest/config"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, URL } from "node:url"
 
-// Vitest 配置：纯逻辑单测，环境设为 node
-// 别名 @/* 与 tsconfig.json 保持一致，指向 ./src/*
 export default defineConfig({
   resolve: {
     alias: {
@@ -11,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/__tests__/**/*.test.ts"],
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.ts"],
   },
 })

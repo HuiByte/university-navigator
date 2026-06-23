@@ -19,6 +19,8 @@ export interface ApiErrorResponse {
   error: {
     code: ApiErrorCode
     message: string
+    /** 字段级校验错误，仅校验类错误返回 */
+    fieldErrors?: Record<string, string[] | undefined>
   }
 }
 
@@ -44,15 +46,17 @@ const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
  * @param code 业务错误码
  * @param message 面向用户的错误描述
  * @param init 额外 Response 初始化项（如 headers）
+ * @param fieldErrors 字段级校验错误（仅校验类错误返回）
  */
 export function errorResponse(
   code: ApiErrorCode,
   message: string,
-  init?: ResponseInit
+  init?: ResponseInit,
+  fieldErrors?: Record<string, string[] | undefined>
 ): Response {
   const body: ApiErrorResponse = {
     success: false,
-    error: { code, message },
+    error: { code, message, ...(fieldErrors ? { fieldErrors } : {}) },
   }
   return Response.json(body, {
     status: ERROR_STATUS_MAP[code],

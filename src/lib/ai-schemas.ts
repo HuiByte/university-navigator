@@ -20,3 +20,20 @@ export const RoadmapSchema = z.object({
 })
 
 export type RoadmapData = z.infer<typeof RoadmapSchema>
+
+/**
+ * 生成大学规划请求的 Zod Schema
+ * 校验前端提交的用户画像字段，确保必填项齐全且非空
+ * extraInfo 为可选补充信息
+ */
+export const generatePlanSchema = z.object({
+  major: z.string().min(1, "专业不能为空"),
+  grade: z.string().min(1, "年级不能为空"),
+  degree: z.string().min(1, "学历不能为空"),
+  goal: z.string().min(1, "目标不能为空"),
+  strengths: z.string().min(1, "优势不能为空"),
+  weaknesses: z.string().min(1, "劣势不能为空"),
+  extraInfo: z.string().optional(),
+})
+
+export type GeneratePlanInput = z.infer<typeof generatePlanSchema>

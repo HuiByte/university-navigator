@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 速率限制：每用户每分钟最多 30 次写入，防止恶意刷数据
-    const { success } = checkRateLimit(userId, 30, 60_000)
+    const { success } = await checkRateLimit(userId, 30, 60_000)
     if (!success) {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
@@ -99,7 +99,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const parsed = createTaskSchema.safeParse(body)
     if (!parsed.success) {
-      return errorResponse("VALIDATION_ERROR", "输入校验失败")
+      return errorResponse(
+        "VALIDATION_ERROR",
+        "输入校验失败",
+        undefined,
+        parsed.error.flatten().fieldErrors
+      )
     }
 
     // dueDate 缺省为今天（每日任务场景）

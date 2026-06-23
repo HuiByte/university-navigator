@@ -6,6 +6,7 @@ import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { generatePlanSchema } from "@/lib/ai-schemas"
 
 const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥有丰富的教育咨询和职业指导经验。你的任务是根据学生提供的个人信息，为其量身定制一份详细、可执行的大学规划方案。
 
@@ -54,21 +55,29 @@ export async function POST(request: NextRequest) {
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
-    const { success } = checkRateLimit(userId, 5, 60_000)
+    const { success } = await checkRateLimit(userId, 5, 60_000)
     if (!success) {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
     const body = await request.json()
-    const { major, grade, degree, goal, strengths, weaknesses, extraInfo } = body
-
-    // 校验必填字段
-    if (!major || !grade || !degree || !goal || !strengths || !weaknesses) {
-      return errorResponse("VALIDATION_ERROR", "缺少必填字段")
+    const parsed = generatePlanSchema.safeParse(body)
+    if (!parsed.success) {
+      return errorResponse(
+        "VALIDATION_ERROR",
+        "输入校验失败",
+        undefined,
+        parsed.error.flatten().fieldErrors
+      )
     }
 
+    const { major, grade, degree, goal, strengths, weaknesses, extraInfo } = parsed.data
+
+    // 收集非阻断性警告，随成功响应返回给前端
+    const warnings: string[] = []
+
     // 持久化用户画像（upsert：首次创建，后续更新）
-    // 容错处理：保存失败不阻断后续 AI 规划生成流程
+    // 容错处理：保存失败不阻断后续 AI 规划生成流程，仅记录警告
     try {
       await prisma.userProfile.upsert({
         where: { userId },
@@ -76,7 +85,8 @@ export async function POST(request: NextRequest) {
         update: { major, grade, degree, goal, strengths, weaknesses },
       })
     } catch (dbError) {
-      console.error("保存用户画像到数据库失败:", dbError)
+      console.warn("保存用户画像到数据库失败:", dbError)
+      warnings.push("用户画像保存失败，可能影响后续推荐")
     }
 
     // 初始化 OpenAI 兼容客户端（支持国内大模型）
@@ -116,7 +126,7 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
       console.error("保存规划到数据库失败:", dbError)
     }
 
-    return successResponse({ plan: result.text })
+    return successResponse({ plan: result.text, warnings })
   } catch (error) {
     console.error("生成规划失败:", error)
     return errorResponse(

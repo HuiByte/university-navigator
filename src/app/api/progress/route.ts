@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { aggregateByDay } from "@/lib/progress-utils"
 
 export async function GET() {
   try {
@@ -73,25 +74,6 @@ export async function GET() {
         select: { dueDate: true, isCompleted: true },
       }),
     ])
-
-    // 按日期聚合每日完成任务数
-    function aggregateByDay(
-      tasks: { dueDate: Date; isCompleted: boolean }[],
-      startDay: Date,
-      days: number
-    ) {
-      const result: { date: string; completed: number }[] = []
-      for (let i = 0; i < days; i++) {
-        const dayStart = new Date(startDay.getTime() + i * 86400000)
-        const dayEnd = new Date(dayStart.getTime() + 86400000)
-        const dayStr = `${dayStart.getMonth() + 1}/${dayStart.getDate()}`
-        const completed = tasks.filter(
-          (t) => t.isCompleted && t.dueDate >= dayStart && t.dueDate < dayEnd
-        ).length
-        result.push({ date: dayStr, completed })
-      }
-      return result
-    }
 
     const thisWeekTrend = aggregateByDay(thisWeekTasks, thisWeekStart, 7)
     const lastWeekTrend = aggregateByDay(lastWeekTasks, lastWeekStart, 7)

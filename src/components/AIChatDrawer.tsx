@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { X, Send, GraduationCap, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -26,8 +27,17 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
     body: { energy },
   }), [energy])
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, reload } = useChat({
     transport,
+    onError() {
+      setAnalyzingTask(false)
+      toast.error("AI 响应意外中断，请检查网络或重试", {
+        action: {
+          label: "重试",
+          onClick: () => reload(),
+        },
+      })
+    },
   })
 
   const isLoading = status === "submitted" || status === "streaming"

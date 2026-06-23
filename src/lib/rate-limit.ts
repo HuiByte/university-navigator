@@ -1,7 +1,14 @@
 /**
- * 基于内存的轻量级速率限制器
- * 适用于单实例 Next.js 服务（未引入 Redis 的场景）
+ * 速率限制器 - 支持分布式与内存双模式
+ *
+ * 生产模式：当 UPSTASH_REDIS_REST_URL 和 UPSTASH_REDIS_REST_TOKEN 存在时，
+ *           使用 @upstash/ratelimit + @upstash/redis 进行分布式限流
+ * 本地降级模式：环境变量不存在时，回退到 globalThis Map 内存限流
  */
+
+import { Ratelimit } from "@upstash/ratelimit"
+import { Redis } from "@upstash/redis"
+import { env } from "./env"
 
 interface RateLimitEntry {
   count: number
@@ -13,12 +20,56 @@ interface RateLimitResult {
   remaining: number
 }
 
-// 利用 globalThis 单例，防止 Next.js dev 热重载导致 Map 和定时器重复创建
+// ---- 全局单例 ----
 const globalForRateLimit = globalThis as typeof globalThis & {
+  __upstashRedis?: Redis
+  __upstashRatelimiters?: Map<string, Ratelimit>
   __rateLimitStore?: Map<string, RateLimitEntry>
   __rateLimitCleanupTimer?: NodeJS.Timeout
 }
 
+const UPSTASH_URL = env.UPSTASH_REDIS_REST_URL
+const UPSTASH_TOKEN = env.UPSTASH_REDIS_REST_TOKEN
+const useUpstash = !!(UPSTASH_URL && UPSTASH_TOKEN)
+
+/**
+ * 获取或创建指定 (limit, window) 对应的 Ratelimit 实例
+ * 使用 globalThis 缓存，防止 Serverless 环境下重复创建
+ */
+function getRatelimit(limit: number, windowSeconds: number): Ratelimit {
+  const cacheKey = `${limit}:${windowSeconds}`
+
+  if (!globalForRateLimit.__upstashRatelimiters) {
+    globalForRateLimit.__upstashRatelimiters = new Map()
+  }
+
+  const cached = globalForRateLimit.__upstashRatelimiters.get(cacheKey)
+  if (cached) return cached
+
+  // Redis 客户端也使用单例
+  if (!globalForRateLimit.__upstashRedis) {
+    globalForRateLimit.__upstashRedis = new Redis({
+      url: UPSTASH_URL!,
+      token: UPSTASH_TOKEN!,
+    })
+  }
+
+  const instance = new Ratelimit({
+    redis: globalForRateLimit.__upstashRedis,
+    limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
+  })
+
+  globalForRateLimit.__upstashRatelimiters.set(cacheKey, instance)
+  return instance
+}
+
+if (!useUpstash && typeof window === "undefined") {
+  console.warn(
+    "未配置 Upstash Redis 环境变量，已降级为内存速率限制，不支持多实例部署"
+  )
+}
+
+// ---- 内存降级模式 ----
 const store: Map<string, RateLimitEntry> =
   globalForRateLimit.__rateLimitStore ?? new Map()
 
@@ -26,10 +77,6 @@ if (!globalForRateLimit.__rateLimitStore) {
   globalForRateLimit.__rateLimitStore = store
 }
 
-/**
- * 启动定时清理任务，每 5 分钟清理 Map 中过期的 key
- * 防止长期运行导致内存溢出
- */
 function startCleanupTimer(): void {
   if (globalForRateLimit.__rateLimitCleanupTimer) return
 
@@ -42,7 +89,6 @@ function startCleanupTimer(): void {
     }
   }, 5 * 60 * 1000)
 
-  // 防止定时器阻止 Node 进程退出
   timer.unref?.()
   globalForRateLimit.__rateLimitCleanupTimer = timer
 }
@@ -50,13 +96,9 @@ function startCleanupTimer(): void {
 startCleanupTimer()
 
 /**
- * 检查速率限制
- * @param userId 用户标识
- * @param limit 窗口内最大请求次数
- * @param windowMs 窗口时长（毫秒）
- * @returns { success: 是否允许, remaining: 剩余次数 }
+ * 内存模式限流实现
  */
-export function checkRateLimit(
+function checkRateLimitMemory(
   userId: string,
   limit: number,
   windowMs: number
@@ -64,7 +106,6 @@ export function checkRateLimit(
   const now = Date.now()
   const entry = store.get(userId)
 
-  // 不存在记录或窗口已过期 → 重置计数
   if (!entry || now >= entry.resetTime) {
     store.set(userId, {
       count: 1,
@@ -73,12 +114,34 @@ export function checkRateLimit(
     return { success: true, remaining: limit - 1 }
   }
 
-  // 已达上限 → 限流
   if (entry.count >= limit) {
     return { success: false, remaining: 0 }
   }
 
-  // 放行，计数 +1
   entry.count++
   return { success: true, remaining: limit - entry.count }
+}
+
+/**
+ * 检查速率限制
+ * @param userId 用户标识
+ * @param limit 窗口内最大请求次数
+ * @param windowMs 窗口时长（毫秒）
+ * @returns { success: 是否允许, remaining: 剩余次数 }
+ */
+export async function checkRateLimit(
+  userId: string,
+  limit: number,
+  windowMs: number
+): Promise<RateLimitResult> {
+  // 生产模式：使用 Upstash 分布式限流
+  if (useUpstash) {
+    const windowSeconds = Math.ceil(windowMs / 1000)
+    const ratelimit = getRatelimit(limit, windowSeconds)
+    const { success, remaining } = await ratelimit.limit(userId)
+    return { success, remaining }
+  }
+
+  // 本地降级模式：内存限流
+  return checkRateLimitMemory(userId, limit, windowMs)
 }

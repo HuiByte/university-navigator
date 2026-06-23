@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
-    const { success } = checkRateLimit(userId, 5, 60_000)
+    const { success } = await checkRateLimit(userId, 5, 60_000)
     if (!success) {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
@@ -91,14 +91,18 @@ ${energyLabel}
       model: openai(env.OPENAI_MODEL),
       system: systemPrompt,
       messages: modelMessages,
+      onError({ error }) {
+        console.error("AI 对话流式传输异常:", error)
+      },
     })
 
     return result.toUIMessageStreamResponse()
   } catch (error) {
     console.error("AI 对话失败:", error)
-    return Response.json(
-      { error: error instanceof Error ? error.message : "AI 对话失败" },
-      { status: 500 }
+    return errorResponse(
+      "AI_GENERATION_FAILED",
+      "Failed to generate chat response. Please try again.",
+      500
     )
   }
 }

@@ -56,7 +56,7 @@ export async function POST() {
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
-    const { success } = checkRateLimit(userId, 5, 60_000)
+    const { success } = await checkRateLimit(userId, 5, 60_000)
     if (!success) {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }

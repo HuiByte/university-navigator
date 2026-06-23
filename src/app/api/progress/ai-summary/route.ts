@@ -14,7 +14,7 @@ export async function POST() {
     }
 
     // 速率限制：每 userId 每分钟最多 5 次
-    const { success } = checkRateLimit(userId, 5, 60_000)
+    const { success } = await checkRateLimit(userId, 5, 60_000)
     if (!success) {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
@@ -86,6 +86,9 @@ export async function POST() {
       model: openai(env.OPENAI_MODEL),
       system: systemPrompt,
       prompt: "请根据我的本周学习数据，生成一段总结。",
+      onError({ error }) {
+        console.error("AI 周报总结流式传输异常:", error)
+      },
     })
 
     return result.toTextStreamResponse()
