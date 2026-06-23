@@ -27,14 +27,14 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
     body: { energy },
   }), [energy])
 
-  const { messages, sendMessage, status, reload } = useChat({
+  const { messages, sendMessage, status, regenerate } = useChat({
     transport,
     onError() {
       setAnalyzingTask(false)
       toast.error("AI 响应意外中断，请检查网络或重试", {
         action: {
           label: "重试",
-          onClick: () => reload(),
+          onClick: () => regenerate(),
         },
       })
     },
