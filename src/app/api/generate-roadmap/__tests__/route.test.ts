@@ -23,15 +23,15 @@ vi.mock("@/lib/env", () => ({
   },
 }))
 
-// Mock Vercel AI SDK — generate-roadmap 使用 generateObject（非 generateText）
+// Mock Vercel AI SDK — generate-roadmap 使用 generateText + 手动 JSON 解析（非 generateObject）
 // 使用 vi.hoisted 确保 mock 变量在 vi.mock 工厂函数执行前已初始化
-const { mockGenerateObject, mockCreateOpenAI } = vi.hoisted(() => ({
-  mockGenerateObject: vi.fn(),
+const { mockGenerateText, mockCreateOpenAI } = vi.hoisted(() => ({
+  mockGenerateText: vi.fn(),
   mockCreateOpenAI: vi.fn(),
 }))
 
 vi.mock("ai", () => ({
-  generateObject: mockGenerateObject,
+  generateText: mockGenerateText,
 }))
 
 vi.mock("@ai-sdk/openai", () => ({
@@ -40,32 +40,38 @@ vi.mock("@ai-sdk/openai", () => ({
 
 const TEST_USER_ID = "user-test-001"
 
-// AI 生成的 3 阶段路线图 Mock 数据
+// AI 生成的 3 阶段路线图 Mock 数据（字段与 RoadmapSchema 对齐）
 const mockStages = [
   {
     title: "基础夯实期",
-    description: "打牢专业基础",
+    duration: "大一上学期",
+    goal: "打牢专业基础",
     actions: ["学好核心课程", "参加学术讲座", "阅读专业书籍"],
   },
   {
     title: "能力提升期",
-    description: "拓展综合能力",
+    duration: "大一下学期至大二",
+    goal: "拓展综合能力",
     actions: ["参与项目实践", "考取专业证书", "参加竞赛活动"],
   },
   {
     title: "冲刺突破期",
-    description: "聚焦目标冲刺",
+    duration: "大三至大四",
+    goal: "聚焦目标冲刺",
     actions: ["实习积累经验", "完善作品集", "准备面试求职"],
   },
 ]
 
+const mockRisks = ["基础不牢导致后续学习困难", "缺乏实践影响就业竞争力"]
+const mockSuggestions = ["制定每日学习计划", "积极参与课外实践"]
+
 beforeEach(() => {
   authMock.logout()
   rateLimitMock.reset()
-  mockGenerateObject.mockReset()
+  mockGenerateText.mockReset()
   mockCreateOpenAI.mockReset()
-  // createOpenAI 默认返回一个函数，该函数返回 mock model
-  mockCreateOpenAI.mockReturnValue(() => "mock-model")
+  // createOpenAI 默认返回带 .chat() 方法的对象，与路由中 openai.chat(model) 调用方式匹配
+  mockCreateOpenAI.mockReturnValue({ chat: () => "mock-model" })
 })
 
 // ============================================
@@ -91,8 +97,10 @@ describe("POST /api/generate-roadmap", () => {
     })
 
     it("AI 生成成功返回 200，阶段列表完整，currentStageIndex 正确反映 60% 进度（第 2 阶段）", async () => {
-      // Mock generateObject 返回包含 3 个阶段的路线图
-      mockGenerateObject.mockResolvedValue({ object: { stages: mockStages } })
+      // Mock generateText 返回包含 JSON 的文本（markdown 代码块包裹，测试解析逻辑）
+      const mockJsonResponse = JSON.stringify({ stages: mockStages, risks: mockRisks, suggestions: mockSuggestions })
+      const mockText = `\`\`\`json\n${mockJsonResponse}\n\`\`\``
+      mockGenerateText.mockResolvedValue({ text: mockText })
 
       // Mock plan 查询：用户已有 plan 和 profile
       mockPrisma.plan.findFirst.mockResolvedValue({
@@ -140,7 +148,8 @@ describe("POST /api/generate-roadmap", () => {
     })
 
     it("已有路线图时走 update 而非 create", async () => {
-      mockGenerateObject.mockResolvedValue({ object: { stages: mockStages } })
+      const mockJsonResponse = JSON.stringify({ stages: mockStages, risks: mockRisks, suggestions: mockSuggestions })
+      mockGenerateText.mockResolvedValue({ text: mockJsonResponse })
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
@@ -184,7 +193,7 @@ describe("POST /api/generate-roadmap", () => {
     })
 
     it("AI SDK 抛出 schema 校验异常时返回 AI_GENERATION_FAILED (502)，roadmap 不被创建", async () => {
-      mockGenerateObject.mockRejectedValue(new Error("schema validation failed"))
+      mockGenerateText.mockRejectedValue(new Error("schema validation failed"))
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
@@ -205,7 +214,7 @@ describe("POST /api/generate-roadmap", () => {
     })
 
     it("AI SDK 抛出非 schema 类异常时返回 INTERNAL_ERROR (500)", async () => {
-      mockGenerateObject.mockRejectedValue(new Error("AI service timeout"))
+      mockGenerateText.mockRejectedValue(new Error("AI service timeout"))
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",

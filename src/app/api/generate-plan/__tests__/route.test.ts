@@ -56,8 +56,8 @@ beforeEach(() => {
   rateLimitMock.reset()
   mockGenerateText.mockReset()
   mockCreateOpenAI.mockReset()
-  // createOpenAI 默认返回一个函数，该函数返回 mock model
-  mockCreateOpenAI.mockReturnValue(() => "mock-model")
+  // createOpenAI 默认返回带 .chat() 方法的对象，与路由中 openai.chat(model) 调用方式匹配
+  mockCreateOpenAI.mockReturnValue({ chat: () => "mock-model" })
 })
 
 // ============================================
