@@ -91,6 +91,7 @@ ${energyLabel}
       model: openai.chat(env.OPENAI_MODEL),
       system: systemPrompt,
       messages: modelMessages,
+      abortSignal: AbortSignal.timeout(120_000),
       onError({ error }) {
         console.error("AI 对话流式传输异常:", error)
       },
@@ -99,9 +100,11 @@ ${energyLabel}
     return result.toUIMessageStreamResponse()
   } catch (error) {
     console.error("AI 对话失败:", error)
-    return errorResponse(
-      "AI_GENERATION_FAILED",
-      "Failed to generate chat response. Please try again."
-    )
+
+    if (error instanceof Error && error.name === "AbortError") {
+      return errorResponse("AI_TIMEOUT", "AI 服务响应超时，请稍后重试")
+    }
+
+    return errorResponse("AI_GENERATION_FAILED", "AI 生成回复失败，请稍后重试")
   }
 }

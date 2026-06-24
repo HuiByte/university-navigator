@@ -12,6 +12,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "AI_GENERATION_FAILED"
   | "ALREADY_CHECKED_IN"
+  | "AI_TIMEOUT"
   | "INTERNAL_ERROR"
 
 /** 统一错误响应结构 */
@@ -40,6 +41,7 @@ const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
   NOT_FOUND: 404,
   AI_GENERATION_FAILED: 502,
   ALREADY_CHECKED_IN: 409,
+  AI_TIMEOUT: 504,
   INTERNAL_ERROR: 500,
 }
 

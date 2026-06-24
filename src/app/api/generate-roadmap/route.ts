@@ -113,6 +113,7 @@ ${latestPlan.content}
       model: openai.chat(env.OPENAI_MODEL),
       system: SYSTEM_PROMPT + `\n\n请以纯 JSON 格式输出，不要包含 markdown 代码块标记。JSON 结构如下：\n${JSON.stringify(RoadmapSchema.shape)}`,
       prompt: userMessage,
+      abortSignal: AbortSignal.timeout(60_000),
     })
 
     // 使用 parseAIJsonResponse 提取 JSON（三策略递进 + 兜底）
@@ -146,12 +147,17 @@ ${latestPlan.content}
     return successResponse({ data: roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("生成路线图失败:", error)
+
+    if (error instanceof Error && error.name === "AbortError") {
+      return errorResponse("AI_TIMEOUT", "AI 服务响应超时，请稍后重试")
+    }
+
     const message = error instanceof Error ? error.message : "生成路线图失败"
     // generateObject 校验失败时返回明确的格式异常提示
     if (message.includes("schema") || message.includes("JSON") || message.includes("parse")) {
       return errorResponse("AI_GENERATION_FAILED", "AI 规划格式异常，请重试")
     }
-    return errorResponse("INTERNAL_ERROR", message)
+    return errorResponse("INTERNAL_ERROR", "服务器内部错误，请稍后重试")
   }
 }
 

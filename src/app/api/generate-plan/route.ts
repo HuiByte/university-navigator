@@ -118,6 +118,7 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
       model: openai.chat(env.OPENAI_MODEL),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
+      abortSignal: AbortSignal.timeout(60_000),
     })
 
     // 生成完成后，将完整规划内容保存到数据库
@@ -136,6 +137,10 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
   } catch (error) {
     console.error("生成规划失败:", error)
 
+    if (error instanceof Error && error.name === "AbortError") {
+      return errorResponse("AI_TIMEOUT", "AI 服务响应超时，请稍后重试")
+    }
+
     const errorMessage = error instanceof Error ? error.message : "生成规划失败"
 
     // 上游 AI API 返回 404 时，error.message 通常为 "Not Found"
@@ -153,6 +158,6 @@ ${extraInfo ? `**补充信息**：${extraInfo}` : ""}
       )
     }
 
-    return errorResponse("AI_GENERATION_FAILED", errorMessage)
+    return errorResponse("AI_GENERATION_FAILED", "AI 生成回复失败，请稍后重试")
   }
 }

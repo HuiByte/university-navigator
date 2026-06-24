@@ -86,6 +86,7 @@ export async function POST() {
       model: openai.chat(env.OPENAI_MODEL),
       system: systemPrompt,
       prompt: "请根据我的本周学习数据，生成一段总结。",
+      abortSignal: AbortSignal.timeout(60_000),
       onError({ error }) {
         console.error("AI 周报总结流式传输异常:", error)
       },
@@ -94,9 +95,11 @@ export async function POST() {
     return result.toTextStreamResponse()
   } catch (error) {
     console.error("AI 周报总结失败:", error)
-    return errorResponse(
-      "AI_GENERATION_FAILED",
-      error instanceof Error ? error.message : "AI 周报总结失败"
-    )
+
+    if (error instanceof Error && error.name === "AbortError") {
+      return errorResponse("AI_TIMEOUT", "AI 服务响应超时，请稍后重试")
+    }
+
+    return errorResponse("AI_GENERATION_FAILED", "AI 生成回复失败，请稍后重试")
   }
 }
