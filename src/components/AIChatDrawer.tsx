@@ -12,10 +12,12 @@ type AIChatDrawerProps = {
   open: boolean
   onClose: () => void
   energy: string
+  /** 当前"卡壳了"对应的任务 ID，作为上下文传给后端，让 AI 精准定位具体任务 */
+  taskId?: string | null
   initialMessage?: string | null
 }
 
-export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDrawerProps) {
+export function AIChatDrawer({ open, onClose, energy, taskId, initialMessage }: AIChatDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const initialMessageSent = useRef(false)
   const [input, setInput] = useState("")
@@ -24,8 +26,8 @@ export function AIChatDrawer({ open, onClose, energy, initialMessage }: AIChatDr
 
   const transport = useMemo(() => new DefaultChatTransport({
     api: "/api/chat",
-    body: { energy },
-  }), [energy])
+    body: { energy, taskId: taskId ?? undefined },
+  }), [energy, taskId])
 
   const { messages, sendMessage, status, regenerate } = useChat({
     transport,

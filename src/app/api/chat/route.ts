@@ -21,9 +21,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { messages, energy } = body as {
+    const { messages, energy, taskId } = body as {
       messages: Record<string, unknown>[]
       energy?: string
+      taskId?: string
     }
 
     if (!messages || !Array.isArray(messages)) {
@@ -65,9 +66,31 @@ export async function POST(request: NextRequest) {
     }
     const energyLabel = energyMap[energy || "normal"] || "状态一般 😐"
 
+    // 若前端传入了 taskId，查询该具体任务（必须校验 userId 防水平越权）
+    // 查不到（taskId 伪造或属于他人）则降级为无特定任务上下文，不报错、不泄露他人数据
+    let focusTask: { title: string; description: string; estimatedMinutes: number } | null = null
+    if (taskId) {
+      const task = await prisma.dailyTask.findFirst({
+        where: { id: taskId, userId },
+        select: { title: true, description: true, estimatedMinutes: true },
+      })
+      if (task) {
+        focusTask = task
+      }
+    }
+
+    // 用户当前卡壳的具体任务（高亮区块，优先级最高，置于全局任务列表之前）
+    const focusBlock = focusTask
+      ? `## 🎯 用户当前正在执行且遇到困难的任务：
+- 任务名称：${focusTask.title}
+- 任务详情：${focusTask.description || "（无详细描述）"}
+- 预估时长：${focusTask.estimatedMinutes} 分钟
+请针对这个具体任务提供详细的拆解步骤、学习建议或心理疏导。`
+      : ""
+
     // 构建 System Prompt
     const systemPrompt = `你是一个温暖、专业、有经验的 AI 学长。你正在指导大学生完成今天的任务。请根据他当前的任务列表和精力状态，提供紧扣实际的解答和鼓励。不要给出脱离他当前任务的空泛建议。
-
+${focusBlock ? `\n${focusBlock}\n` : ""}
 ## 当前用户的今日任务列表：
 ${taskListStr}
 

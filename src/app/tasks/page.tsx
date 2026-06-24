@@ -49,6 +49,8 @@ export default function TasksPage() {
   const [energy, setEnergy] = useState<EnergyLevel>("normal")
   const [chatOpen, setChatOpen] = useState(false)
   const [initialMessage, setInitialMessage] = useState<string | null>(null)
+  // 当前"卡壳了"按钮对应的任务 ID，作为上下文传给后端 AI
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
 
   // 获取今日任务
   const fetchTasks = useCallback(async () => {
@@ -91,9 +93,14 @@ export default function TasksPage() {
     }
   }
 
-  // 打开 AI 学长聊天，发送预设消息
-  const openChatWithTask = (taskTitle: string) => {
-    setInitialMessage(`学长，我正在做任务：${taskTitle}，我感觉有点卡壳，能给我一点提示吗？`)
+  // 打开 AI 学长聊天，发送预设消息（携带完整任务上下文：title + description）
+  const openChatWithTask = (task: { id: string; title: string; description: string }) => {
+    const desc = task.description?.trim()
+    const prompt = desc
+      ? `我正在执行任务：【${task.title}】。任务具体要求是：${desc}。我现在有点卡壳了，请帮我拆解一下具体步骤，或者给我一些学习建议。`
+      : `我正在执行任务：【${task.title}】。我现在有点卡壳了，请帮我拆解一下具体步骤，或者给我一些学习建议。`
+    setInitialMessage(prompt)
+    setActiveTaskId(task.id)
     setChatOpen(true)
   }
 
@@ -160,7 +167,7 @@ export default function TasksPage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => openChatWithTask(focusTask.title)}
+                onClick={() => openChatWithTask(focusTask)}
               >
                 <HelpCircle className="mr-1 h-4 w-4" />
                 卡壳了
@@ -295,7 +302,7 @@ export default function TasksPage() {
                         variant="ghost"
                         size="sm"
                         className="h-7 shrink-0 text-xs text-muted-foreground hover:text-primary"
-                        onClick={() => openChatWithTask(task.title)}
+                        onClick={() => openChatWithTask(task)}
                       >
                         🆘 卡壳了
                       </Button>
@@ -314,8 +321,10 @@ export default function TasksPage() {
         onClose={() => {
           setChatOpen(false)
           setInitialMessage(null)
+          setActiveTaskId(null)
         }}
         energy={energy}
+        taskId={activeTaskId}
         initialMessage={initialMessage}
       />
     </div>

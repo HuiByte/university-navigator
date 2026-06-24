@@ -192,4 +192,99 @@ describe("POST /api/chat", () => {
       expect(callArg.system).toContain("疲惫")
     })
   })
+
+  describe("单任务上下文注入（taskId）", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+      // vitest 未开启 clearMocks，手动清理 findFirst 调用记录，保证 not.toHaveBeenCalled 断言准确
+      mockPrisma.dailyTask.findFirst.mockClear()
+
+      // Mock 今日任务列表（全局背景上下文）
+      mockPrisma.dailyTask.findMany.mockResolvedValue([
+        {
+          id: "task-001",
+          userId: TEST_USER_ID,
+          title: "背单词",
+          isCompleted: false,
+          priority: 3,
+          estimatedMinutes: 30,
+          dueDate: new Date(),
+          description: "",
+          roadmapId: null,
+          stageIndex: null,
+        },
+      ])
+    })
+
+    it("传入 taskId 且任务属于当前用户时，system prompt 注入该任务的标题与描述", async () => {
+      // 模拟查到属于当前用户的具体卡壳任务
+      // 路由侧用 select 只取 title/description/estimatedMinutes，mock 值用 as any 对齐
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({
+        title: "完成高数第三章习题",
+        description: "重点练习极限与连续部分",
+        estimatedMinutes: 60,
+      } as any)
+
+      await POST(
+        makeRequest("/api/chat", {
+          method: "POST",
+          body: {
+            messages: [{ role: "user", content: "这个任务怎么拆解？" }],
+            taskId: "task-002",
+          },
+        }),
+      )
+
+      // 必须带 userId 做防越权校验
+      expect(mockPrisma.dailyTask.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: "task-002", userId: TEST_USER_ID }),
+        }),
+      )
+
+      const calls = (mockStreamText as any).mock.calls
+      const callArg = calls[0][0] as any
+      expect(callArg.system).toContain("用户当前正在执行且遇到困难的任务")
+      expect(callArg.system).toContain("完成高数第三章习题")
+      expect(callArg.system).toContain("重点练习极限与连续部分")
+      expect(callArg.system).toContain("60 分钟")
+    })
+
+    it("taskId 属于他人/伪造（查不到）时降级：不注入该任务上下文、不报错、返回 200", async () => {
+      // 模拟越权：findFirst 查不到（taskId 不属于当前用户）
+      mockPrisma.dailyTask.findFirst.mockResolvedValue(null)
+
+      const res = await POST(
+        makeRequest("/api/chat", {
+          method: "POST",
+          body: {
+            messages: [{ role: "user", content: "你好" }],
+            taskId: "someone-else-task",
+          },
+        }),
+      )
+
+      // 不报错，正常返回流式响应
+      expect(res.status).toBe(200)
+      expect(res.headers.get("Content-Type")).toContain("event-stream")
+
+      const calls = (mockStreamText as any).mock.calls
+      const callArg = calls[0][0] as any
+      // 不应包含卡壳任务高亮区块（不泄露他人任务信息）
+      expect(callArg.system).not.toContain("用户当前正在执行且遇到困难的任务")
+      // 仍应保留全局任务列表背景
+      expect(callArg.system).toContain("背单词")
+    })
+
+    it("不传 taskId 时走原有逻辑，不查询 findFirst", async () => {
+      await POST(
+        makeRequest("/api/chat", {
+          method: "POST",
+          body: { messages: [{ role: "user", content: "你好" }] },
+        }),
+      )
+
+      expect(mockPrisma.dailyTask.findFirst).not.toHaveBeenCalled()
+    })
+  })
 })
