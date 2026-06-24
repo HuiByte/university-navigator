@@ -21,6 +21,7 @@ import {
   Target,
   AlertTriangle,
   RefreshCw,
+  Inbox,
 } from "lucide-react"
 import {
   BarChart,
@@ -47,6 +48,7 @@ type ProgressData = {
     thisWeek: number
     lastWeek: number
   }[]
+  hasData: boolean
 }
 
 type SkillNode = {
@@ -127,6 +129,10 @@ export default function ProgressPage() {
   }
 
   const completionRate = data?.completionRate ?? 0
+  const hasData = data?.hasData ?? false
+
+  // 趋势数据中是否有实质内容（至少一天有完成任务）
+  const hasTrendData = (data?.trendData?.some((d) => d.thisWeek > 0 || d.lastWeek > 0)) ?? false
 
   return (
     <div className="space-y-6">
@@ -137,7 +143,7 @@ export default function ProgressPage() {
         </div>
       </div>
 
-      {/* ========== 顶部：4 个数据卡片 ========== */}
+      {/* ========== 无数据 Empty State ========== */}
       {loading ? (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -160,186 +166,187 @@ export default function ProgressPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard
-            icon={<BookOpen className="h-5 w-5 text-blue-500" />}
-            label="总学习天数"
-            value={data?.totalStudyDays ?? 0}
-            suffix="天"
-            gradient="from-blue-500/10 to-blue-500/5"
-          />
-          <StatCard
-            icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-            label="已完成任务"
-            value={data?.completedTasks ?? 0}
-            suffix={`/${data?.totalTasks ?? 0}`}
-            gradient="from-emerald-500/10 to-emerald-500/5"
-          />
-          <StatCard
-            icon={<TrendingUp className="h-5 w-5 text-amber-500" />}
-            label="完成率"
-            value={completionRate}
-            suffix="%"
-            gradient="from-amber-500/10 to-amber-500/5"
-          />
-          <StatCard
-            icon={<Flame className="h-5 w-5 text-rose-500" />}
-            label="连续打卡"
-            value={data?.currentStreak ?? 0}
-            suffix="天"
-            gradient="from-rose-500/10 to-rose-500/5"
-          />
-        </div>
-      )}
-
-      {/* ========== 中部：趋势图 + 技能树 ========== */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* 左侧：本周学习趋势 */}
-        <Card className="lg:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              本周学习趋势
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-[260px] w-full" />
-            ) : (data?.trendData?.length ?? 0) > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={data?.trendData ?? []} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(214.3 31.8% 91.4%)" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12, fill: "hsl(215.4 16.3% 46.9%)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12, fill: "hsl(215.4 16.3% 46.9%)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={30}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(214.3 31.8% 91.4%)",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                      fontSize: "13px",
-                    }}
-                    labelStyle={{ fontWeight: 600 }}
-                  />
-                  <Legend
-                    verticalAlign="top"
-                    height={36}
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={(value: string) => (
-                      <span style={{ fontSize: "12px", color: "hsl(215.4 16.3% 46.9%)" }}>
-                        {value === "thisWeek" ? "本周" : "上周"}
-                      </span>
-                    )}
-                  />
-                  <Bar
-                    dataKey="lastWeek"
-                    fill="hsl(214.3 31.8% 91.4%)"
-                    radius={[4, 4, 0, 0]}
-                    name="lastWeek"
-                  />
-                  <Bar
-                    dataKey="thisWeek"
-                    fill="hsl(221.2 83.2% 53.3%)"
-                    radius={[4, 4, 0, 0]}
-                    name="thisWeek"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-[260px] items-center justify-center text-muted-foreground">
-                暂无趋势数据
-              </div>
-            )}
+      ) : !hasData ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Inbox className="h-12 w-12 text-muted-foreground/40 mb-4" />
+            <p className="text-base font-medium text-muted-foreground mb-2">暂无进度数据</p>
+            <p className="text-sm text-muted-foreground/70">完成几个任务后再来看看吧！</p>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          {/* ========== 顶部：4 个数据卡片 ========== */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard
+              icon={<BookOpen className="h-5 w-5 text-blue-500" />}
+              label="总学习天数"
+              value={data?.totalStudyDays ?? 0}
+              suffix="天"
+              gradient="from-blue-500/10 to-blue-500/5"
+            />
+            <StatCard
+              icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+              label="已完成任务"
+              value={data?.completedTasks ?? 0}
+              suffix={`/${data?.totalTasks ?? 0}`}
+              gradient="from-emerald-500/10 to-emerald-500/5"
+            />
+            <StatCard
+              icon={<TrendingUp className="h-5 w-5 text-amber-500" />}
+              label="完成率"
+              value={completionRate}
+              suffix="%"
+              gradient="from-amber-500/10 to-amber-500/5"
+            />
+            <StatCard
+              icon={<Flame className="h-5 w-5 text-rose-500" />}
+              label="连续打卡"
+              value={data?.currentStreak ?? 0}
+              suffix="天"
+              gradient="from-rose-500/10 to-rose-500/5"
+            />
+          </div>
 
-        {/* 右侧：技能树 */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-primary" />
-              技能树
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {SKILL_TREE.map((skill) => {
-                  const isUnlocked = completionRate >= skill.threshold
-                  const progress = Math.min(
-                    100,
-                    Math.max(0, ((completionRate - skill.threshold + 20) / 20) * 100)
-                  )
-                  return (
-                    <div
-                      key={skill.id}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg border p-3 transition-all duration-300",
-                        isUnlocked
-                          ? skill.color
-                          : "border-border bg-muted/30 text-muted-foreground"
-                      )}
-                    >
+          {/* ========== 中部：趋势图 + 技能树 ========== */}
+          <div className="grid gap-6 lg:grid-cols-5">
+            {/* 左侧：本周学习趋势 */}
+            <Card className="lg:col-span-3">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  本周学习趋势
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {hasTrendData ? (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={data?.trendData ?? []} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(214.3 31.8% 91.4%)" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12, fill: "hsl(215.4 16.3% 46.9%)" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fontSize: 12, fill: "hsl(215.4 16.3% 46.9%)" }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={30}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid hsl(214.3 31.8% 91.4%)",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          fontSize: "13px",
+                        }}
+                        labelStyle={{ fontWeight: 600 }}
+                      />
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value: string) => (
+                          <span style={{ fontSize: "12px", color: "hsl(215.4 16.3% 46.9%)" }}>
+                            {value === "thisWeek" ? "本周" : "上周"}
+                          </span>
+                        )}
+                      />
+                      <Bar
+                        dataKey="lastWeek"
+                        fill="hsl(214.3 31.8% 91.4%)"
+                        radius={[4, 4, 0, 0]}
+                        name="lastWeek"
+                      />
+                      <Bar
+                        dataKey="thisWeek"
+                        fill="hsl(221.2 83.2% 53.3%)"
+                        radius={[4, 4, 0, 0]}
+                        name="thisWeek"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-[260px] items-center justify-center text-muted-foreground">
+                    还没有完成任务，加油！
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 右侧：技能树 */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  技能树
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2.5">
+                  {SKILL_TREE.map((skill) => {
+                    const isUnlocked = completionRate >= skill.threshold
+                    const progress = Math.min(
+                      100,
+                      Math.max(0, ((completionRate - skill.threshold + 20) / 20) * 100)
+                    )
+                    return (
                       <div
+                        key={skill.id}
                         className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-all",
+                          "flex items-center gap-3 rounded-lg border p-3 transition-all duration-300",
                           isUnlocked
-                            ? "bg-white/80 shadow-sm"
-                            : "bg-muted"
+                            ? skill.color
+                            : "border-border bg-muted/30 text-muted-foreground"
                         )}
                       >
-                        {skill.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{skill.name}</span>
-                          {isUnlocked ? (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                              已解锁
-                            </Badge>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">
-                              需 {skill.threshold}% 完成率
-                            </span>
+                        <div
+                          className={cn(
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-all",
+                            isUnlocked
+                              ? "bg-white/80 shadow-sm"
+                              : "bg-muted"
                           )}
+                        >
+                          {skill.icon}
                         </div>
-                        {/* 进度条 */}
-                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              isUnlocked ? "bg-current opacity-60" : "bg-muted-foreground/30"
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{skill.name}</span>
+                            {isUnlocked ? (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                已解锁
+                              </Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">
+                                需 {skill.threshold}% 完成率
+                              </span>
                             )}
-                            style={{ width: `${isUnlocked ? 100 : progress}%` }}
-                          />
+                          </div>
+                          {/* 进度条 */}
+                          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                isUnlocked ? "bg-current opacity-60" : "bg-muted-foreground/30"
+                              )}
+                              style={{ width: `${isUnlocked ? 100 : progress}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* ========== 底部：AI 周报总结 ========== */}
       <Card>
@@ -350,7 +357,13 @@ export default function ProgressPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!aiSummary && !aiLoading && (
+          {!hasData && !aiLoading ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                完成更多任务后，AI 学长将为你生成专属分析
+              </p>
+            </div>
+          ) : !aiSummary && !aiLoading ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <p className="mb-3 text-sm text-muted-foreground">
                 让 AI 学长帮你总结本周表现，给出鼓励和建议
@@ -360,7 +373,7 @@ export default function ProgressPage() {
                 获取本周 AI 总结
               </Button>
             </div>
-          )}
+          ) : null}
 
           {aiLoading && !aiSummary && (
             <div className="flex items-center justify-center py-6">

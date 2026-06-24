@@ -52,6 +52,14 @@ export async function POST() {
     const weekRate = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0
     const overallRate = totalAll > 0 ? Math.round((totalCompleted / totalAll) * 100) : 0
 
+    // 无实质数据时降级：返回默认文案，跳过 AI 调用
+    if (totalCompleted === 0 && checkInCount === 0) {
+      const defaultMsg = "### 🌟 本周闪光点\n\n你已经开始规划学习路线了，这是最重要的一步！\n\n### 📈 下周改进建议\n\n1. 从路线图中挑选一个最简单的任务，今天就开始\n2. 每天固定一个时间段专注学习，养成习惯\n3. 完成任务后记得打卡，记录你的成长\n\n### 💬 学长寄语\n\n千里之行，始于足下。迈出第一步，你就已经超越了大多数人！"
+      return new Response(defaultMsg, {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      })
+    }
+
     const systemPrompt = `你是一位温暖、有洞察力的 AI 学长，擅长根据数据给出鼓励和建设性建议。请根据以下本周学习数据，生成一段总结。
 
 ## 本周数据：

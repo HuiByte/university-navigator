@@ -128,6 +128,8 @@ describe("POST /api/chat", () => {
           estimatedMinutes: 30,
           dueDate: new Date(),
           description: "",
+          roadmapId: null,
+          stageIndex: null,
         },
       ])
     })
@@ -155,7 +157,8 @@ describe("POST /api/chat", () => {
       )
 
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      const callArg = mockStreamText.mock.calls[0][0]!
+      const calls = (mockStreamText as any).mock.calls
+      const callArg = calls[0][0] as any
 
       // system prompt 应包含任务上下文
       expect(callArg.system).toContain("AI 学长")
@@ -183,7 +186,8 @@ describe("POST /api/chat", () => {
         }),
       )
 
-      const callArg = mockStreamText.mock.calls[0][0]!
+      const calls = (mockStreamText as any).mock.calls
+      const callArg = calls[0][0] as any
       // 精力值应体现在 system prompt 中
       expect(callArg.system).toContain("疲惫")
     })

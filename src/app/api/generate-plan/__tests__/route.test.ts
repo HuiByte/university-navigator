@@ -101,6 +101,9 @@ describe("POST /api/generate-plan", () => {
         userId: TEST_USER_ID,
         content: aiText,
         createdAt: new Date(),
+        version: 1,
+        status: "ACTIVE",
+        archivedAt: null,
       })
 
       const res = await POST(

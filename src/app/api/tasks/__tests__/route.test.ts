@@ -29,6 +29,8 @@ const mockTask = {
   priority: 3,
   estimatedMinutes: 30,
   dueDate: new Date("2026-06-22"),
+  roadmapId: null,
+  stageIndex: null,
 }
 
 beforeEach(() => {

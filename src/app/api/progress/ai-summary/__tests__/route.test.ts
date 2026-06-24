@@ -80,9 +80,9 @@ describe("POST /api/progress/ai-summary", () => {
       // 提供本周数据
       mockPrisma.checkInRecord.count.mockResolvedValue(3)
       mockPrisma.dailyTask.findMany.mockResolvedValue([
-        { isCompleted: true },
-        { isCompleted: true },
-        { isCompleted: false },
+        { id: "t-1", userId: TEST_USER_ID, title: "任务1", description: "", isCompleted: true, priority: 1, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
+        { id: "t-2", userId: TEST_USER_ID, title: "任务2", description: "", isCompleted: true, priority: 2, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
+        { id: "t-3", userId: TEST_USER_ID, title: "任务3", description: "", isCompleted: false, priority: 3, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
       ])
       // 总计：completed=5, total=10
       mockPrisma.dailyTask.count.mockResolvedValueOnce(5)
@@ -97,9 +97,9 @@ describe("POST /api/progress/ai-summary", () => {
     it("streamText 被调用，且传入正确的 system prompt", async () => {
       mockPrisma.checkInRecord.count.mockResolvedValue(3)
       mockPrisma.dailyTask.findMany.mockResolvedValue([
-        { isCompleted: true },
-        { isCompleted: true },
-        { isCompleted: false },
+        { id: "t-1", userId: TEST_USER_ID, title: "任务1", description: "", isCompleted: true, priority: 1, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
+        { id: "t-2", userId: TEST_USER_ID, title: "任务2", description: "", isCompleted: true, priority: 2, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
+        { id: "t-3", userId: TEST_USER_ID, title: "任务3", description: "", isCompleted: false, priority: 3, estimatedMinutes: 30, dueDate: new Date(), roadmapId: null, stageIndex: null },
       ])
       mockPrisma.dailyTask.count.mockResolvedValueOnce(5)
       mockPrisma.dailyTask.count.mockResolvedValueOnce(10)
@@ -107,7 +107,8 @@ describe("POST /api/progress/ai-summary", () => {
       await POST()
 
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      const callArg = mockStreamText.mock.calls[0][0]!
+      const calls = (mockStreamText as any).mock.calls
+      const callArg = calls[0][0] as any
       // system prompt 应包含关键字段
       expect(callArg.system).toContain("AI 学长")
       expect(callArg.system).toContain("本周数据")

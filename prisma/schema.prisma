@@ -7,6 +7,15 @@ datasource db {
 }
 
 // ============================================
+// 枚举
+// ============================================
+
+enum PlanStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// ============================================
 // 业务模型
 // ============================================
 
@@ -41,19 +50,38 @@ model UserProfile {
 }
 
 model Plan {
-  id        String   @id @default(cuid())
-  userId    String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roadmap   Roadmap?
+  id         String     @id @default(cuid())
+  userId     String
+  content    String     @db.Text
+  createdAt  DateTime   @default(now())
+
+  // 版本控制字段
+  version    Int        @default(1)
+  status     PlanStatus @default(ACTIVE)
+  archivedAt DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roadmaps  Roadmap[]
+
+  @@index([userId, status])
+  @@index([userId, version])
 }
 
 model Roadmap {
-  id     String @id @default(cuid())
-  planId String @unique
-  stages Json   // 路线图节点数据
-  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  id     String   @id @default(cuid())
+  planId String
+  stages Json
+
+  // 版本控制字段
+  version    Int        @default(1)
+  status     PlanStatus @default(ACTIVE)
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  plan  Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tasks DailyTask[]
+
+  @@index([planId])
 }
 
 model DailyTask {
@@ -65,7 +93,15 @@ model DailyTask {
   priority         Int      @default(0)
   estimatedMinutes Int      @default(30)
   dueDate          DateTime
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 路线图关联（可选，手动创建的任务无此字段）
+  roadmapId  String?
+  stageIndex Int?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roadmap Roadmap? @relation(fields: [roadmapId], references: [id], onDelete: SetNull)
+
+  @@index([roadmapId])
 }
 
 model CheckInRecord {

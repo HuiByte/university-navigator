@@ -79,9 +79,9 @@ export async function POST() {
       return errorResponse("VALIDATION_ERROR", "请先完成规划生成")
     }
 
-    // 检查是否已有路线图（支持重新生成）
-    const existingRoadmap = await prisma.roadmap.findUnique({
-      where: { planId: latestPlan.id },
+    // 检查是否已有 ACTIVE 路线图（Plan → Roadmap 为 1:N，需用 findFirst）
+    const existingRoadmap = await prisma.roadmap.findFirst({
+      where: { planId: latestPlan.id, status: "ACTIVE" },
     })
 
     // 构建用户信息上下文
@@ -130,20 +130,70 @@ ${latestPlan.content}
       return errorResponse("AI_GENERATION_FAILED", "AI 规划格式异常，请重试")
     }
 
-    // 保存到数据库（更新或创建）
-    const roadmap = existingRoadmap
-      ? await prisma.roadmap.update({
-          where: { planId: latestPlan.id },
-          data: { stages: roadmapData },
-        })
-      : await prisma.roadmap.create({
-          data: {
-            planId: latestPlan.id,
-            stages: roadmapData,
-          },
+    // 计算新版本号
+    const newVersion = existingRoadmap ? existingRoadmap.version + 1 : 1
+
+    // 计算当前阶段索引（基于纯数据，无需查库）
+    const stageCount = roadmapData.stages.length
+    const currentStageIndex = stageCount > 0 ? 0 : 0
+
+    // 提取当前阶段的 actions 用于生成 DailyTask
+    const currentStage = roadmapData.stages[currentStageIndex]
+    const today = new Date()
+
+    // 事务：归档旧路线图 + 清理旧未完成任务 + 创建新路线图 + 生成新任务
+    const roadmap = await prisma.$transaction(async (tx) => {
+      // Step A: 归档旧 Roadmap & 清理关联的未完成任务
+      if (existingRoadmap) {
+        // 归档旧路线图
+        await tx.roadmap.update({
+          where: { id: existingRoadmap.id },
+          data: { status: "ARCHIVED", archivedAt: new Date() },
         })
 
-    const currentStageIndex = await resolveCurrentStageIndex(userId, roadmap.stages)
+        // 删除旧路线图关联的未完成任务（已完成的保留作为历史记录）
+        await tx.dailyTask.deleteMany({
+          where: {
+            roadmapId: existingRoadmap.id,
+            isCompleted: false,
+          },
+        })
+      }
+
+      // Step B: 创建新 Roadmap
+      const newRoadmap = await tx.roadmap.create({
+        data: {
+          planId: latestPlan.id,
+          stages: roadmapData,
+          version: newVersion,
+          status: "ACTIVE",
+        },
+      })
+
+      // Step C: 根据当前阶段的 actions 批量生成 DailyTask
+      if (currentStage && currentStage.actions.length > 0) {
+        await tx.dailyTask.createMany({
+          data: currentStage.actions.map((action, index) => ({
+            userId,
+            title: action,
+            description: currentStage.goal,
+            isCompleted: false,
+            priority: currentStage.actions.length - index, // 按顺序递减，第一个优先级最高
+            estimatedMinutes: 60,
+            dueDate: today,
+            roadmapId: newRoadmap.id,
+            stageIndex: currentStageIndex,
+          })),
+        })
+
+        console.info(
+          `用户 ${userId} 路线图生成完成，自动创建 ${currentStage.actions.length} 条每日任务`
+        )
+      }
+
+      return newRoadmap
+    })
+
     return successResponse({ data: roadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("生成路线图失败:", error)
@@ -174,19 +224,21 @@ export async function GET() {
     const latestPlan = await prisma.plan.findFirst({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: { roadmap: true },
+      include: { roadmaps: { where: { status: "ACTIVE" } } },
     })
 
     if (!latestPlan) {
       return successResponse({ data: null, reason: "no_plan" })
     }
 
-    if (!latestPlan.roadmap) {
+    const activeRoadmap = latestPlan.roadmaps[0]
+
+    if (!activeRoadmap) {
       return successResponse({ data: null, reason: "no_roadmap" })
     }
 
-    const currentStageIndex = await resolveCurrentStageIndex(userId, latestPlan.roadmap.stages)
-    return successResponse({ data: latestPlan.roadmap.stages, currentStageIndex })
+    const currentStageIndex = await resolveCurrentStageIndex(userId, activeRoadmap.stages)
+    return successResponse({ data: activeRoadmap.stages, currentStageIndex })
   } catch (error) {
     console.error("获取路线图失败:", error)
     return errorResponse("INTERNAL_ERROR", error instanceof Error ? error.message : "获取路线图失败")

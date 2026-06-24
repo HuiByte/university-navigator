@@ -61,8 +61,8 @@ describe("GET /api/progress", () => {
 
       // 本周 & 上周任务（在 Promise.all 中按序调用）
       const today = new Date()
-      const mockTaskDone = { dueDate: today, isCompleted: true }
-      const mockTaskPending = { dueDate: today, isCompleted: false }
+      const mockTaskDone = { id: "t-1", userId: TEST_USER_ID, title: "任务1", description: "", isCompleted: true, priority: 1, estimatedMinutes: 30, dueDate: today, roadmapId: null, stageIndex: null }
+      const mockTaskPending = { id: "t-2", userId: TEST_USER_ID, title: "任务2", description: "", isCompleted: false, priority: 2, estimatedMinutes: 30, dueDate: today, roadmapId: null, stageIndex: null }
       mockPrisma.dailyTask.findMany.mockResolvedValueOnce([mockTaskDone, mockTaskPending]) // thisWeek
       mockPrisma.dailyTask.findMany.mockResolvedValueOnce([]) // lastWeek
 

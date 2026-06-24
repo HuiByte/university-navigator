@@ -79,11 +79,16 @@ export async function GET() {
     const lastWeekTrend = aggregateByDay(lastWeekTasks, lastWeekStart, 7)
 
     // 合并趋势数据（用于图表对比展示）
-    const trendData = thisWeekTrend.map((item, i) => ({
+    // 防御：确保两条趋势线长度一致，以较短的为准做 zip
+    const trendLength = Math.min(thisWeekTrend.length, lastWeekTrend.length)
+    const trendData = thisWeekTrend.slice(0, trendLength).map((item, i) => ({
       date: item.date,
       thisWeek: item.completed,
-      lastWeek: lastWeekTrend[i]?.completed || 0,
+      lastWeek: lastWeekTrend[i]?.completed ?? 0,
     }))
+
+    // 判断是否有实质数据（至少有一个完成任务或打卡记录）
+    const hasData = completedTasks > 0 || totalStudyDays > 0
 
     return successResponse({
       totalStudyDays,
@@ -92,6 +97,7 @@ export async function GET() {
       completionRate,
       currentStreak,
       trendData,
+      hasData,
     })
   } catch (error) {
     console.error("获取进度数据失败:", error)
