@@ -101,7 +101,12 @@ describe("POST /api/check-in", () => {
       yesterday.setHours(0, 0, 0, 0)
 
       // findMany 返回包含昨天日期的记录
-      mockPrisma.checkInRecord.findMany.mockResolvedValue([{ date: yesterday }])
+      mockPrisma.checkInRecord.findMany.mockResolvedValue([{
+        id: "checkin-yesterday",
+        userId: TEST_USER_ID,
+        date: yesterday,
+        streakCount: 1,
+      }])
 
       mockPrisma.checkInRecord.create.mockResolvedValue({
         id: "checkin-new",

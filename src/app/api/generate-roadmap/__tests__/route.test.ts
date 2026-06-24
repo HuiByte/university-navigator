@@ -105,6 +105,7 @@ describe("POST /api/generate-roadmap", () => {
       // Mock plan 查询：用户已有 plan 和 profile
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
+        createdAt: new Date(),
         userId: TEST_USER_ID,
         content: "我的大学规划内容",
         user: {
@@ -115,7 +116,7 @@ describe("POST /api/generate-roadmap", () => {
             goal: "全栈工程师",
           },
         },
-      })
+      } as any)
 
       // Mock roadmap 不存在（首次生成走 create）
       mockPrisma.roadmap.findUnique.mockResolvedValue(null)
@@ -153,10 +154,11 @@ describe("POST /api/generate-roadmap", () => {
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
+        createdAt: new Date(),
         userId: TEST_USER_ID,
         content: "我的大学规划内容",
         user: { profile: { major: "计算机科学", grade: "大三", degree: "本科", goal: "后端工程师" } },
-      })
+      } as any)
 
       // Mock roadmap 已存在（走 update）
       mockPrisma.roadmap.findUnique.mockResolvedValue({
@@ -197,10 +199,11 @@ describe("POST /api/generate-roadmap", () => {
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
+        createdAt: new Date(),
         userId: TEST_USER_ID,
         content: "我的大学规划内容",
         user: { profile: null },
-      })
+      } as any)
 
       const res = await POST()
       const body = await res.json()
@@ -218,10 +221,11 @@ describe("POST /api/generate-roadmap", () => {
 
       mockPrisma.plan.findFirst.mockResolvedValue({
         id: "plan-001",
+        createdAt: new Date(),
         userId: TEST_USER_ID,
         content: "我的大学规划内容",
         user: { profile: null },
-      })
+      } as any)
 
       const res = await POST()
       const body = await res.json()

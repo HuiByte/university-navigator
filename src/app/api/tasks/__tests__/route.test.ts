@@ -98,11 +98,11 @@ describe("GET /api/tasks", () => {
 
       // 验证 findMany 被调用，且 where 条件包含正确的 userId
       expect(mockPrisma.dailyTask.findMany).toHaveBeenCalledTimes(1)
-      const callArg = mockPrisma.dailyTask.findMany.mock.calls[0][0]
-      expect(callArg.where.userId).toBe(TEST_USER_ID)
-      expect(callArg.where.dueDate).toBeDefined()
-      expect(callArg.where.dueDate.gte).toBeInstanceOf(Date)
-      expect(callArg.where.dueDate.lt).toBeInstanceOf(Date)
+      const callArg = mockPrisma.dailyTask.findMany.mock.calls[0][0]!
+      expect(callArg.where!.userId).toBe(TEST_USER_ID)
+      expect(callArg.where!.dueDate).toBeDefined()
+      expect((callArg.where!.dueDate as { gte: Date }).gte).toBeInstanceOf(Date)
+      expect((callArg.where!.dueDate as { lt: Date }).lt).toBeInstanceOf(Date)
       // 验证排序：优先级降序 + id 升序
       expect(callArg.orderBy).toEqual([{ priority: "desc" }, { id: "asc" }])
     })
@@ -255,9 +255,10 @@ describe("POST /api/tasks", () => {
       expect(createData.dueDate).toBeInstanceOf(Date)
       // 验证 dueDate 是今天（只比较日期部分）
       const today = new Date()
-      expect(createData.dueDate.getFullYear()).toBe(today.getFullYear())
-      expect(createData.dueDate.getMonth()).toBe(today.getMonth())
-      expect(createData.dueDate.getDate()).toBe(today.getDate())
+      const dueDate = createData.dueDate as Date
+      expect(dueDate.getFullYear()).toBe(today.getFullYear())
+      expect(dueDate.getMonth()).toBe(today.getMonth())
+      expect(dueDate.getDate()).toBe(today.getDate())
     })
 
     it("传入 dueDate 时使用传入值", async () => {
@@ -271,7 +272,7 @@ describe("POST /api/tasks", () => {
 
       const createData = mockPrisma.dailyTask.create.mock.calls[0][0].data
       expect(createData.dueDate).toBeInstanceOf(Date)
-      expect(createData.dueDate.toISOString()).toContain("2026-07-01")
+      expect((createData.dueDate as Date).toISOString()).toContain("2026-07-01")
     })
   })
 })
@@ -347,7 +348,7 @@ describe("PATCH /api/tasks", () => {
 
     it("操作他人任务返回 404 且不执行 update", async () => {
       // 任务归属人是 user-B，当前登录用户是 user-test-001
-      mockPrisma.dailyTask.findFirst.mockResolvedValue({ userId: "user-B" })
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: "user-B" })
 
       const res = await PATCH(
         makeRequest("/api/tasks", {
@@ -368,7 +369,7 @@ describe("PATCH /api/tasks", () => {
     beforeEach(() => {
       authMock.loginAs(TEST_USER_ID)
       // findFirst 返回的任务归属人是当前用户
-      mockPrisma.dailyTask.findFirst.mockResolvedValue({ userId: TEST_USER_ID })
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: TEST_USER_ID })
       mockPrisma.dailyTask.update.mockResolvedValue({ ...mockTask, isCompleted: true })
     })
 
@@ -408,9 +409,9 @@ describe("PATCH /api/tasks", () => {
         })
       )
 
-      const findFirstArgs = mockPrisma.dailyTask.findFirst.mock.calls[0][0]
+      const findFirstArgs = mockPrisma.dailyTask.findFirst.mock.calls[0][0]!
       expect(findFirstArgs.select).toEqual({ userId: true })
-      expect(findFirstArgs.where.id).toBe("task-001")
+      expect(findFirstArgs.where!.id).toBe("task-001")
     })
   })
 })

@@ -87,11 +87,20 @@ describe("POST /api/generate-plan", () => {
     it("AI 生成成功返回 200，prisma.plan.create 被调用 1 次且包含 AI 内容", async () => {
       const aiText = "这是一份详细的大学规划方案..."
       mockGenerateText.mockResolvedValue({ text: aiText })
-      mockPrisma.userProfile.upsert.mockResolvedValue({})
+      mockPrisma.userProfile.upsert.mockResolvedValue({
+        userId: TEST_USER_ID,
+        major: "计算机科学",
+        grade: "大二",
+        degree: "本科",
+        goal: "成为全栈工程师",
+        strengths: "逻辑思维强",
+        weaknesses: "英语较弱",
+      })
       mockPrisma.plan.create.mockResolvedValue({
         id: "plan-001",
         userId: TEST_USER_ID,
         content: aiText,
+        createdAt: new Date(),
       })
 
       const res = await POST(
