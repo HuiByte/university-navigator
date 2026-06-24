@@ -16,7 +16,12 @@ function coerceToStringArray(val: unknown): unknown {
   if (typeof val === "string") {
     return val
       .split(/\r?\n/)
-      .map((line) => line.replace(/^\d+[\.\)]\s*/, "").trim())
+      .map((line) =>
+        line
+          // 去除数字序号前缀（如 "1. " / "2) "）和项目符号前缀（如 "- " / "* " / "• "）
+          .replace(/^(?:\d+[\.\)]\s*|[-*•]\s+)/, "")
+          .trim()
+      )
       .filter((line) => line.length > 0)
   }
   return val

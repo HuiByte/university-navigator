@@ -123,7 +123,9 @@ describe("POST /api/progress/ai-summary", () => {
     beforeEach(() => {
       authMock.loginAs(TEST_USER_ID)
 
-      mockPrisma.checkInRecord.count.mockResolvedValue(0)
+      // 提供非零打卡数据，绕过 route 中的降级早返回（totalCompleted===0 && checkInCount===0），
+      // 确保 streamText 被实际调用，从而触发下方 mock 抛出的异常
+      mockPrisma.checkInRecord.count.mockResolvedValue(1)
       mockPrisma.dailyTask.findMany.mockResolvedValue([])
       mockPrisma.dailyTask.count.mockResolvedValueOnce(0)
       mockPrisma.dailyTask.count.mockResolvedValueOnce(0)
