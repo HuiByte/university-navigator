@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { RoadmapSchema, type RoadmapData } from "@/lib/ai-schemas"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { computeCurrentStageIndex } from "@/lib/roadmap-utils"
+import { parseAIJsonResponse } from "@/lib/ai-response-parser"
 
 const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划拆解为可执行的分阶段路线图。
 
@@ -18,7 +19,9 @@ const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划
 3. risks 包含 2-4 个潜在风险
 4. suggestions 包含 2-4 个应对建议
 5. 阶段划分要结合用户的年级和学历，合理推算时间线
-6. 目标和行动要具体、可衡量、可执行`
+6. 目标和行动要具体、可衡量、可执行
+
+**重要：必须且只能输出合法的纯 JSON 字符串，绝对不要包含 markdown 代码块（如 \`\`\`json），也不要包含任何解释性文字。**`
 
 /**
  * 查询用户任务进度并计算当前阶段索引
@@ -112,17 +115,17 @@ ${latestPlan.content}
       prompt: userMessage,
     })
 
-    // 从 AI 响应中提取并校验 JSON
+    // 使用 parseAIJsonResponse 提取 JSON（三策略递进 + 兜底）
     let roadmapData: RoadmapData
     try {
-      // 尝试从响应文本中提取 JSON（兼容 markdown 代码块包裹的情况）
-      const text = result.text.trim()
-      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text]
-      const jsonStr = jsonMatch[1].trim()
-      const parsed = JSON.parse(jsonStr)
+      const parsed = parseAIJsonResponse(result.text)
       roadmapData = RoadmapSchema.parse(parsed)
     } catch (parseError) {
       console.error("路线图 JSON 解析/校验失败:", parseError)
+      const message = parseError instanceof Error ? parseError.message : ""
+      if (message === "JSON_PARSE_FAILED") {
+        return errorResponse("AI_GENERATION_FAILED", "AI 返回格式异常，无法解析")
+      }
       return errorResponse("AI_GENERATION_FAILED", "AI 规划格式异常，请重试")
     }
 
