@@ -21,7 +21,24 @@ const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划
 5. 阶段划分要结合用户的年级和学历，合理推算时间线
 6. 目标和行动要具体、可衡量、可执行
 
-**重要：必须且只能输出合法的纯 JSON 字符串，绝对不要包含 markdown 代码块（如 \`\`\`json），也不要包含任何解释性文字。**`
+**JSON 格式要求（极其重要，务必严格遵守）**：
+- 必须且只能输出合法的纯 JSON 字符串，绝对不要包含 markdown 代码块（如 \`\`\`json），也不要包含任何解释性文字。
+- "actions" MUST be a strict JSON array of strings (e.g., ["task1", "task2"]). NEVER use a single multiline string for actions. 绝对不要把 actions 写成带换行符或数字序号的长字符串（如 "1. 任务A\\n2. 任务B" 是错误的），必须是 ["任务A", "任务B"] 这样的字符串数组。
+- "risks" 和 "suggestions" 同样必须是字符串数组，不可写成单个字符串。
+
+正确的 JSON 结构示例：
+{
+  "stages": [
+    {
+      "title": "阶段名称",
+      "duration": "大一上学期",
+      "goal": "该阶段的核心目标",
+      "actions": ["行动项1", "行动项2", "行动项3"]
+    }
+  ],
+  "risks": ["风险1", "风险2"],
+  "suggestions": ["建议1", "建议2"]
+}`
 
 /**
  * 查询用户任务进度并计算当前阶段索引
@@ -109,9 +126,10 @@ ${latestPlan.content}
     // 使用 generateText 生成 JSON 文本，再手动解析校验
     // 不使用 generateObject：它默认发送 response_format: { type: 'json_schema' }，
     // DeepSeek 不支持 json_schema 模式，只支持 json_object，会返回 400
+    // JSON 结构示例已内置于 SYSTEM_PROMPT，无需再拼接 JSON.stringify(RoadmapSchema.shape)
     const result = await generateText({
       model: openai.chat(env.OPENAI_MODEL),
-      system: SYSTEM_PROMPT + `\n\n请以纯 JSON 格式输出，不要包含 markdown 代码块标记。JSON 结构如下：\n${JSON.stringify(RoadmapSchema.shape)}`,
+      system: SYSTEM_PROMPT,
       prompt: userMessage,
       abortSignal: AbortSignal.timeout(60_000),
     })

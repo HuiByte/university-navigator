@@ -1,6 +1,28 @@
 import { z } from "zod"
 
 /**
+ * 防御性字符串数组清洗
+ * 容错处理 AI 输出不稳定问题（DeepSeek 偶尔把数组输出成带换行/序号的长字符串）：
+ * - string[]：逐项 trim 并过滤空串
+ * - string：按换行符拆分，去除数字序号前缀（如 "1. " / "2) "），trim 后过滤空串
+ * - 其他类型：原样透传，交由后续 z.array(z.string()) 抛出明确校验错误
+ */
+function coerceToStringArray(val: unknown): unknown {
+  if (Array.isArray(val)) {
+    return val
+      .map((item) => (typeof item === "string" ? item.trim() : String(item).trim()))
+      .filter((item) => item.length > 0)
+  }
+  if (typeof val === "string") {
+    return val
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\d+[\.\)]\s*/, "").trim())
+      .filter((line) => line.length > 0)
+  }
+  return val
+}
+
+/**
  * AI 路线图输出的 Zod Schema
  * 用于 generateObject 结构化校验，确保 AI 返回的 JSON 符合前端契约
  */
@@ -11,7 +33,9 @@ export const RoadmapSchema = z.object({
         title: z.string().describe("阶段名称"),
         duration: z.string().describe("时间跨度，如：大一上学期"),
         goal: z.string().describe("该阶段的核心目标"),
-        actions: z.array(z.string()).describe("具体可执行的行动项"),
+        actions: z
+          .preprocess(coerceToStringArray, z.array(z.string()))
+          .describe("具体可执行的行动项"),
       })
     )
     .describe("路线图阶段数组，3-5 个阶段，按时间顺序排列"),
