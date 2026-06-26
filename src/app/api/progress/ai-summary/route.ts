@@ -5,6 +5,7 @@ import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse } from "@/lib/api-response"
+import { getDayRange, getDayStartDaysAgo } from "@/lib/date-utils"
 
 export async function POST() {
   try {
@@ -20,10 +21,9 @@ export async function POST() {
     }
 
     const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-    // 聚合本周数据
-    const weekStart = new Date(todayStart.getTime() - 6 * 86400000)
+    // 今日 end（半开区间上界）+ 本周起始（6 天前），均按默认时区 Asia/Shanghai 计算
+    const { end: todayEnd } = getDayRange(now)
+    const weekStart = getDayStartDaysAgo(now, 6)
 
     const [checkInCount, weekTasks, totalCompleted, totalAll] = await Promise.all([
       prisma.checkInRecord.count({
@@ -35,7 +35,7 @@ export async function POST() {
       prisma.dailyTask.findMany({
         where: {
           userId,
-          dueDate: { gte: weekStart, lt: new Date(todayStart.getTime() + 86400000) },
+          dueDate: { gte: weekStart, lt: todayEnd },
         },
         select: { isCompleted: true },
       }),

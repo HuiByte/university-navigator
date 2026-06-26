@@ -151,9 +151,9 @@ ${latestPlan.content}
     // 计算新版本号
     const newVersion = existingRoadmap ? existingRoadmap.version + 1 : 1
 
-    // 计算当前阶段索引（基于纯数据，无需查库）
-    const stageCount = roadmapData.stages.length
-    const currentStageIndex = stageCount > 0 ? 0 : 0
+    // 基于用户真实任务进度计算当前阶段索引（查库统计完成数 + 纯函数映射）
+    // 必须在事务外调用：resolveCurrentStageIndex 使用 prisma（非 tx）查询
+    const currentStageIndex = await resolveCurrentStageIndex(userId, roadmapData)
 
     // 提取当前阶段的 actions 用于生成 DailyTask
     const currentStage = roadmapData.stages[currentStageIndex]

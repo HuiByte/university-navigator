@@ -6,6 +6,7 @@ import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse } from "@/lib/api-response"
+import { getDayRange } from "@/lib/date-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,9 +38,8 @@ export async function POST(request: NextRequest) {
     )
 
     // 查询当前用户的今日任务列表，作为上下文注入
-    const today = new Date()
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+    // 今日 [start, end) 半开区间（按默认时区 Asia/Shanghai 计算当日边界）
+    const { start: startOfDay, end: endOfDay } = getDayRange()
 
     const tasks = await prisma.dailyTask.findMany({
       where: {

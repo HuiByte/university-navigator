@@ -3,6 +3,7 @@ import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { calculateStreak } from "@/lib/checkin-utils"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { getDayStart } from "@/lib/date-utils"
 
 // POST: 每日打卡，记录学习并更新连续打卡天数（streak）
 export async function POST() {
@@ -18,8 +19,8 @@ export async function POST() {
       return errorResponse("RATE_LIMIT_EXCEEDED", "请求过于频繁，请稍后再试", { headers: { "Retry-After": "60" } })
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // 当日 0 点（按默认时区 Asia/Shanghai 计算，避免 UTC 运行时按 UTC 切日）
+    const today = getDayStart()
 
     // 检查今天是否已打卡（userId + date 联合唯一）
     const existingCheckIn = await prisma.checkInRecord.findUnique({

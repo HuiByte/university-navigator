@@ -159,8 +159,8 @@ describe("POST /api/generate-roadmap", () => {
       // Mock dailyTask.createMany
       mockPrisma.dailyTask.createMany.mockResolvedValue({ count: 3 })
 
-      // Mock 任务进度（resolveCurrentStageIndex 在事务外不再被调用，
-      // 但 POST handler 中 currentStageIndex 直接设为 0）
+      // Mock 任务进度：resolveCurrentStageIndex 在事务外查询 prisma.dailyTask.count
+      // 首次生成无任务，completedCount=0 / totalCount=0 → stage 索引为 0
       mockPrisma.dailyTask.count
         .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0)
@@ -239,6 +239,12 @@ describe("POST /api/generate-roadmap", () => {
       })
       mockPrisma.dailyTask.deleteMany.mockResolvedValue({ count: 2 })
       mockPrisma.dailyTask.createMany.mockResolvedValue({ count: 3 })
+
+      // Mock 任务进度：resolveCurrentStageIndex 在事务外查询 prisma.dailyTask.count
+      // 重新生成时查旧任务进度，completedCount=0 / totalCount=0 → stage 索引为 0
+      mockPrisma.dailyTask.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
 
       const res = await POST()
       const body = await res.json()

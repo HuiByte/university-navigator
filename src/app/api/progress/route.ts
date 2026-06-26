@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { getAuthenticatedUserId } from "@/lib/auth-utils"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { aggregateByDay } from "@/lib/progress-utils"
+import { getDayRange, getDayStart, getDayStartDaysAgo } from "@/lib/date-utils"
 
 export async function GET() {
   try {
@@ -11,7 +12,8 @@ export async function GET() {
     }
 
     const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // 今日 [start, end) 边界（按默认时区 Asia/Shanghai 计算，避免 UTC 运行时按 UTC 切日）
+    const { start: todayStart, end: todayEnd } = getDayRange(now)
 
     // ---- 基础统计 ----
 
@@ -42,9 +44,10 @@ export async function GET() {
     // 校验最近打卡是否为今天或昨天（连续才有效）
     let currentStreak = 0
     if (latestCheckIn) {
-      const lastDate = new Date(latestCheckIn.date)
-      const lastDateOnly = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate())
-      const yesterday = new Date(todayStart.getTime() - 86400000)
+      // 将最近打卡日期归一化到其所在时区天的 0 点，与 todayStart 同口径
+      // （防 UTC 运行时按本地时区切日，导致 Shanghai 23:00 打卡被错判为昨天）
+      const lastDateOnly = getDayStart(new Date(latestCheckIn.date))
+      const yesterday = getDayStartDaysAgo(now, 1)
       if (lastDateOnly.getTime() === todayStart.getTime() || lastDateOnly.getTime() === yesterday.getTime()) {
         currentStreak = latestCheckIn.streakCount
       }
@@ -53,16 +56,16 @@ export async function GET() {
     // ---- 趋势数据：最近 7 天 & 上周 7 天的每日完成任务数 ----
 
     // 本周：最近 7 天（含今天）
-    const thisWeekStart = new Date(todayStart.getTime() - 6 * 86400000)
+    const thisWeekStart = getDayStartDaysAgo(now, 6)
     // 上周：前 7 天
-    const lastWeekStart = new Date(todayStart.getTime() - 13 * 86400000)
+    const lastWeekStart = getDayStartDaysAgo(now, 13)
 
     // 批量查询本周和上周的任务
     const [thisWeekTasks, lastWeekTasks] = await Promise.all([
       prisma.dailyTask.findMany({
         where: {
           userId,
-          dueDate: { gte: thisWeekStart, lt: new Date(todayStart.getTime() + 86400000) },
+          dueDate: { gte: thisWeekStart, lt: todayEnd },
         },
         select: { dueDate: true, isCompleted: true },
       }),
