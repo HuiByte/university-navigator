@@ -63,10 +63,25 @@ function getRatelimit(limit: number, windowSeconds: number): Ratelimit {
   return instance
 }
 
-if (!useUpstash && typeof window === "undefined") {
+if (!useUpstash && typeof window === "undefined" && process.env.NODE_ENV !== "production") {
   console.warn(
     "未配置 Upstash Redis 环境变量，已降级为内存速率限制，不支持多实例部署"
   )
+}
+
+// 生产环境硬阻断：lazy 检查（首次调用 checkRateLimit 时触发）
+// 不在模块加载时抛错，避免 next build 阶段加载 API 路由模块时误触发导致构建失败
+// 在 Serverless 冷启动首次请求时触发，等效于"阻断启动"
+let productionConfigChecked = false
+function assertProductionConfig(): void {
+  if (productionConfigChecked) return
+  productionConfigChecked = true
+  if (process.env.NODE_ENV === "production" && !useUpstash) {
+    throw new Error(
+      "生产环境必须配置 UPSTASH_REDIS_REST_URL 和 UPSTASH_REDIS_REST_TOKEN，" +
+        "内存限流不支持多实例部署。请检查环境变量配置。"
+    )
+  }
 }
 
 // ---- 内存降级模式 ----
@@ -134,6 +149,9 @@ export async function checkRateLimit(
   limit: number,
   windowMs: number
 ): Promise<RateLimitResult> {
+  // 生产环境硬阻断：首次调用时检查 Upstash 配置
+  assertProductionConfig()
+
   // 生产模式：使用 Upstash 分布式限流
   if (useUpstash) {
     const windowSeconds = Math.ceil(windowMs / 1000)

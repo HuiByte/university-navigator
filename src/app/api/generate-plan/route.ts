@@ -7,6 +7,7 @@ import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { generatePlanSchema } from "@/lib/ai-schemas"
+import { sanitizeUserInput, ANTI_INJECTION_DIRECTIVE } from "@/lib/ai-utils"
 
 // Vercel Serverless Function 最大执行时长（秒）
 // DeepSeek 生成长文本规划通常需要 15-30s，Hobby 计划默认 10s 会超时
@@ -49,7 +50,7 @@ const SYSTEM_PROMPT = `你是一位资深且温暖的大学职业规划师，拥
 - 目标要切合实际，循序渐进
 - 充分考虑学生的专业特点和当前阶段
 - 如果信息不足，给出合理假设并标注
-- 用中文回答`
+- 用中文回答${ANTI_INJECTION_DIRECTIVE}`
 
 export async function POST(request: NextRequest) {
   try {
@@ -101,16 +102,16 @@ export async function POST(request: NextRequest) {
       baseURL: env.OPENAI_BASE_URL,
     })
 
-    // 构建用户消息
+    // 构建用户消息（对用户输入字段进行清洗，防止 Prompt 注入与 Token 溢出）
     const userMessage = `请根据以下信息为我制定大学规划：
 
-**专业**：${major}
-**年级**：${grade}
-**学历**：${degree}
-**目标**：${goal}
-**优点**：${strengths}
-**缺点**：${weaknesses}
-${extraInfo ? `**补充信息**：${extraInfo}` : ""}
+**专业**：${sanitizeUserInput(major)}
+**年级**：${sanitizeUserInput(grade)}
+**学历**：${sanitizeUserInput(degree)}
+**目标**：${sanitizeUserInput(goal)}
+**优点**：${sanitizeUserInput(strengths)}
+**缺点**：${sanitizeUserInput(weaknesses)}
+${extraInfo ? `**补充信息**：${sanitizeUserInput(extraInfo)}` : ""}
 
 请给出详细、可执行的规划方案。`
 

@@ -8,6 +8,7 @@ import { RoadmapSchema, type RoadmapData } from "@/lib/ai-schemas"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { computeCurrentStageIndex } from "@/lib/roadmap-utils"
 import { parseAIJsonResponse } from "@/lib/ai-response-parser"
+import { sanitizeUserInput, ANTI_INJECTION_DIRECTIVE } from "@/lib/ai-utils"
 
 const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划拆解为可执行的分阶段路线图。
 
@@ -38,7 +39,7 @@ const SYSTEM_PROMPT = `你是一位严谨的项目经理，擅长将宏观规划
   ],
   "risks": ["风险1", "风险2"],
   "suggestions": ["建议1", "建议2"]
-}`
+}${ANTI_INJECTION_DIRECTIVE}`
 
 /**
  * 查询用户任务进度并计算当前阶段索引
@@ -101,10 +102,10 @@ export async function POST() {
       where: { planId: latestPlan.id, status: "ACTIVE" },
     })
 
-    // 构建用户信息上下文
+    // 构建用户信息上下文（对用户画像字段清洗，防止 Prompt 注入）
     const profile = latestPlan.user.profile
     const profileInfo = profile
-      ? `专业：${profile.major}，年级：${profile.grade}，学历：${profile.degree}，目标：${profile.goal}`
+      ? `专业：${sanitizeUserInput(profile.major)}，年级：${sanitizeUserInput(profile.grade)}，学历：${sanitizeUserInput(profile.degree)}，目标：${sanitizeUserInput(profile.goal)}`
       : "无用户画像信息"
 
     const userMessage = `以下是我的个人信息和大学规划，请据此生成路线图：

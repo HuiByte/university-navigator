@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { z } from "zod"
 import { streamText, convertToModelMessages } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { prisma } from "@/lib/prisma"
@@ -7,6 +8,35 @@ import { env } from "@/lib/env"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { errorResponse } from "@/lib/api-response"
 import { getDayRange } from "@/lib/date-utils"
+
+// Chat 请求校验 Schema
+// 兼容 Vercel AI SDK 的 UIMessage（role + parts）与 CoreMessage（role + content）两种结构
+// 替换不安全的 `body as {...}` 运行时断言
+const chatMessagePartSchema = z.object({
+  type: z.string().min(1),
+}).passthrough() // 允许 text/state/toolInvocation 等扩展字段透传给 SDK
+
+const chatMessageSchema = z.object({
+  id: z.string().optional(),
+  role: z.enum(["system", "user", "assistant"]),
+  parts: z.array(chatMessagePartSchema).min(1).optional(),
+  content: z.string().optional(),
+}).passthrough().superRefine((data, ctx) => {
+  // 至少包含 parts（UIMessage）或 content（CoreMessage）之一
+  if (data.parts === undefined && data.content === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["parts"],
+      message: "消息必须包含 parts 或 content 字段",
+    })
+  }
+})
+
+const chatRequestSchema = z.object({
+  messages: z.array(chatMessageSchema).min(1, "messages 不能为空"),
+  energy: z.string().optional(),
+  taskId: z.string().optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,17 +52,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { messages, energy, taskId } = body as {
-      messages: Record<string, unknown>[]
-      energy?: string
-      taskId?: string
+    const parsed = chatRequestSchema.safeParse(body)
+    if (!parsed.success) {
+      return errorResponse(
+        "VALIDATION_ERROR",
+        "messages 校验失败",
+        undefined,
+        parsed.error.flatten().fieldErrors
+      )
     }
 
-    if (!messages || !Array.isArray(messages)) {
-      return errorResponse("VALIDATION_ERROR", "缺少 messages 字段")
-    }
+    const { messages, energy, taskId } = parsed.data
 
     // 将 UIMessage 格式转换为 ModelMessage 格式（id 字段由 SDK 内部处理）
+    // 类型断言：zod safeParse 已校验 messages 结构（至少含 parts 或 content），此处仅做 TS 类型兼容
     const modelMessages = await convertToModelMessages(
       messages as Parameters<typeof convertToModelMessages>[0]
     )
