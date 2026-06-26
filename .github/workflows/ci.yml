@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Lint / Test / Build
+    runs-on: ubuntu-latest
+
+    # CI 环境变量：注入 dummy 值确保 build 与 Prisma generate 能跑通
+    # UPSTASH_REDIS_REST_URL 必须是合法 URL（env.ts 用 z.string().url() 校验）
+    env:
+      DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+      AUTH_SECRET: "dummy"
+      AUTH_GITHUB_ID: "dummy"
+      AUTH_GITHUB_SECRET: "dummy"
+      OPENAI_API_KEY: "dummy"
+      OPENAI_BASE_URL: "https://api.deepseek.com"
+      OPENAI_MODEL: "deepseek-chat"
+      UPSTASH_REDIS_REST_URL: "https://dummy.upstash.io"
+      UPSTASH_REDIS_REST_TOKEN: "dummy"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
