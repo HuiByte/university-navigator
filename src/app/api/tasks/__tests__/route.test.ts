@@ -3,7 +3,7 @@ import { mockAuthFn, authMock } from "@/test/mocks/auth"
 import { mockPrisma } from "@/test/mocks/prisma"
 import { mockCheckRateLimit, rateLimitMock } from "@/test/mocks/rate-limit"
 import { makeRequest } from "@/test/helpers/request"
-import { GET, POST, PATCH } from "../route"
+import { GET, POST, PATCH, DELETE, PUT } from "../route"
 
 // vi.mock 必须在测试文件顶层调用（Vitest 会将其 hoist 到文件顶部）
 // 工厂函数中引用的变量必须以 mock 开头（Vitest hoisting 例外规则）
@@ -408,6 +408,359 @@ describe("PATCH /api/tasks", () => {
         makeRequest("/api/tasks", {
           method: "PATCH",
           body: { taskId: "task-001", isCompleted: true },
+        })
+      )
+
+      const findFirstArgs = mockPrisma.dailyTask.findFirst.mock.calls[0][0]!
+      expect(findFirstArgs.select).toEqual({ userId: true })
+      expect(findFirstArgs.where!.id).toBe("task-001")
+    })
+  })
+})
+
+// ============================================
+// DELETE /api/tasks — 删除任务
+// ============================================
+describe("DELETE /api/tasks", () => {
+  describe("鉴权", () => {
+    it("未登录返回 401", async () => {
+      authMock.logout()
+
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "task-001" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(401)
+      expect(body.error.code).toBe("UNAUTHORIZED")
+    })
+  })
+
+  describe("输入校验", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+    })
+
+    it("缺少 taskId 返回 400 且包含 fieldErrors.taskId", async () => {
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: {} })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.taskId).toBeDefined()
+    })
+
+    it("taskId 为非字符串返回 400", async () => {
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: 123 } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+    })
+  })
+
+  describe("越权防护", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+    })
+
+    it("任务不存在返回 404 且不执行 delete", async () => {
+      mockPrisma.dailyTask.findFirst.mockResolvedValue(null)
+
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "nonexistent" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(404)
+      expect(body.error.code).toBe("NOT_FOUND")
+      // 关键：越权时 delete 绝不能被调用
+      expect(mockPrisma.dailyTask.delete).not.toHaveBeenCalled()
+    })
+
+    it("删除他人任务返回 404 且不执行 delete", async () => {
+      // 任务归属人是 user-B，当前登录用户是 user-test-001
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: "user-B" })
+
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "task-001" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(404)
+      expect(body.error.code).toBe("NOT_FOUND")
+      // 关键：越权时 delete 绝不能被调用
+      expect(mockPrisma.dailyTask.delete).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("成功请求", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+      // findFirst 返回的任务归属人是当前用户
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: TEST_USER_ID })
+      mockPrisma.dailyTask.delete.mockResolvedValue(mockTask)
+    })
+
+    it("合法请求删除任务返回 200", async () => {
+      const res = await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "task-001" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(body.data.id).toBe("task-001")
+    })
+
+    it("delete 被调用时传入正确的 taskId", async () => {
+      await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "task-001" } })
+      )
+
+      expect(mockPrisma.dailyTask.delete).toHaveBeenCalledTimes(1)
+      const deleteArgs = mockPrisma.dailyTask.delete.mock.calls[0][0]
+      expect(deleteArgs.where.id).toBe("task-001")
+    })
+
+    it("findFirst 查询时仅 select userId 字段（最小化查询）", async () => {
+      await DELETE(
+        makeRequest("/api/tasks", { method: "DELETE", body: { taskId: "task-001" } })
+      )
+
+      const findFirstArgs = mockPrisma.dailyTask.findFirst.mock.calls[0][0]!
+      expect(findFirstArgs.select).toEqual({ userId: true })
+      expect(findFirstArgs.where!.id).toBe("task-001")
+    })
+  })
+})
+
+// ============================================
+// PUT /api/tasks — 更新任务字段
+// ============================================
+describe("PUT /api/tasks", () => {
+  describe("鉴权", () => {
+    it("未登录返回 401", async () => {
+      authMock.logout()
+
+      const res = await PUT(
+        makeRequest("/api/tasks", { method: "PUT", body: { taskId: "task-001", title: "新标题" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(401)
+      expect(body.error.code).toBe("UNAUTHORIZED")
+    })
+  })
+
+  describe("输入校验", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+    })
+
+    it("缺少 taskId 返回 400 且包含 fieldErrors.taskId", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", { method: "PUT", body: { title: "新标题" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.taskId).toBeDefined()
+    })
+
+    it("无可更新字段返回 400", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", { method: "PUT", body: { taskId: "task-001" } })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.form).toBeDefined()
+    })
+
+    it("title 超过 100 字符返回 400 且包含 fieldErrors.title", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", title: "a".repeat(101) },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.title).toBeDefined()
+    })
+
+    it("priority 超出范围（>5）返回 400 且包含 fieldErrors.priority", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", priority: 6 },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.priority).toBeDefined()
+    })
+
+    it("estimatedMinutes 超出范围（>480）返回 400", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", estimatedMinutes: 500 },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe("VALIDATION_ERROR")
+      expect(body.error.fieldErrors.estimatedMinutes).toBeDefined()
+    })
+  })
+
+  describe("越权防护", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+    })
+
+    it("任务不存在返回 404 且不执行 update", async () => {
+      mockPrisma.dailyTask.findFirst.mockResolvedValue(null)
+
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "nonexistent", title: "新标题" },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(404)
+      expect(body.error.code).toBe("NOT_FOUND")
+      // 关键：越权时 update 绝不能被调用
+      expect(mockPrisma.dailyTask.update).not.toHaveBeenCalled()
+    })
+
+    it("更新他人任务返回 404 且不执行 update", async () => {
+      // 任务归属人是 user-B，当前登录用户是 user-test-001
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: "user-B" })
+
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", title: "新标题" },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(404)
+      expect(body.error.code).toBe("NOT_FOUND")
+      // 关键：越权时 update 绝不能被调用
+      expect(mockPrisma.dailyTask.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("成功请求", () => {
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+      // findFirst 返回的任务归属人是当前用户
+      mockPrisma.dailyTask.findFirst.mockResolvedValue({ ...mockTask, userId: TEST_USER_ID })
+      mockPrisma.dailyTask.update.mockResolvedValue({ ...mockTask, title: "新标题" })
+    })
+
+    it("合法请求更新任务返回 200", async () => {
+      const res = await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", title: "新标题" },
+        })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(body.data.title).toBe("新标题")
+    })
+
+    it("update 被调用时传入正确的 taskId 和更新字段", async () => {
+      await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", title: "新标题", priority: 5 },
+        })
+      )
+
+      expect(mockPrisma.dailyTask.update).toHaveBeenCalledTimes(1)
+      const updateArgs = mockPrisma.dailyTask.update.mock.calls[0][0]
+      expect(updateArgs.where.id).toBe("task-001")
+      expect(updateArgs.data.title).toBe("新标题")
+      expect(updateArgs.data.priority).toBe(5)
+    })
+
+    it("仅更新传入字段（partial update，未传字段不出现在 data 中）", async () => {
+      await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", priority: 4 },
+        })
+      )
+
+      const updateArgs = mockPrisma.dailyTask.update.mock.calls[0][0]
+      expect(updateArgs.where.id).toBe("task-001")
+      // 仅 priority 出现在 data 中，title/description 等不应出现
+      expect(updateArgs.data.priority).toBe(4)
+      expect(updateArgs.data.title).toBeUndefined()
+      expect(updateArgs.data.description).toBeUndefined()
+    })
+
+    it("支持更新 dueDate 字段", async () => {
+      const customDate = "2026-07-15"
+      await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", dueDate: customDate },
+        })
+      )
+
+      const updateArgs = mockPrisma.dailyTask.update.mock.calls[0][0]
+      expect(updateArgs.data.dueDate).toBeInstanceOf(Date)
+      expect((updateArgs.data.dueDate as Date).toISOString()).toContain("2026-07-15")
+    })
+
+    it("支持同时更新多个字段", async () => {
+      await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: {
+            taskId: "task-001",
+            title: "多字段更新",
+            description: "新描述",
+            priority: 2,
+            estimatedMinutes: 45,
+          },
+        })
+      )
+
+      const updateArgs = mockPrisma.dailyTask.update.mock.calls[0][0]
+      expect(updateArgs.data.title).toBe("多字段更新")
+      expect(updateArgs.data.description).toBe("新描述")
+      expect(updateArgs.data.priority).toBe(2)
+      expect(updateArgs.data.estimatedMinutes).toBe(45)
+    })
+
+    it("findFirst 查询时仅 select userId 字段（最小化查询）", async () => {
+      await PUT(
+        makeRequest("/api/tasks", {
+          method: "PUT",
+          body: { taskId: "task-001", title: "新标题" },
         })
       )
 
