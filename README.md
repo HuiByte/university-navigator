@@ -1,5 +1,7 @@
 # 大学导航员 (University Navigator)
 
+[![CI](https://github.com/HuiByte/university-navigator/actions/workflows/ci.yml/badge.svg)](https://github.com/HuiByte/university-navigator/actions/workflows/ci.yml)
+
 智能规划你的大学之路——从目标设定到路线图生成，让每一步都清晰可见。
 
 大学导航员是一个基于 AI 的大学规划助手，帮助学生根据自身专业、年级和目标，自动生成个性化的成长规划、可视化路线图、每日任务清单，并提供打卡追踪与 AI 答疑功能。
@@ -90,7 +92,15 @@ AUTH_GITHUB_SECRET="your-github-oauth-app-secret"
 
 # Auth.js 加密密钥（生成命令：openssl rand -base64 32）
 AUTH_SECRET="your-random-secret-key"
+
+# Upstash Redis（本地可选 / 生产必填）
+# 本地不配置时自动降级为内存限流（仅单实例）
+# ⚠️ 生产环境（NODE_ENV=production）未配置时，首次限流调用会硬阻断并抛错
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
 ```
+
+> **生产环境必填提示**：`UPSTASH_REDIS_REST_URL` 与 `UPSTASH_REDIS_REST_TOKEN` 在本地开发为可选（降级为内存限流），但在生产环境为**必填项**。`src/lib/rate-limit.ts` 中的 `assertProductionConfig()` 会在 `NODE_ENV=production` 且未配置 Upstash 时，于首次限流调用抛出错误以阻断请求。详见下方[「本地开发 vs 生产部署」](#本地开发-vs-生产部署)。
 
 ### 4. 执行 Prisma 迁移
 
@@ -181,6 +191,26 @@ university-navigator/
 | `npm run db:push` | 同步 schema 到数据库 |
 | `npm run db:generate` | 生成 Prisma Client |
 | `npm run db:studio` | 打开 Prisma Studio |
+
+## 本地开发 vs 生产部署
+
+本项目在「限流」与「环境变量校验」上对本地与生产环境做了差异化处理，部署前请务必了解：
+
+| 维度 | 本地开发 | 生产部署（Vercel） |
+|------|---------|-------------------|
+| **速率限制** | 内存限流（`globalThis` Map），单实例有效，无需额外依赖 | Upstash Redis 分布式限流，支持多 Serverless 实例 |
+| **Upstash Redis** | 可选，未配置时自动降级并打印告警 | **必填**，`rate-limit.ts` 的 `assertProductionConfig()` 会在首次限流调用时硬阻断 |
+| **环境变量校验** | `src/lib/env.ts` 用 Zod 校验；Upstash 为 `optional`，缺失可正常启动 | 同样经 Zod 校验；但生产环境必须额外满足 Upstash 双变量同时存在，否则首个 AI/限流接口即报错 |
+| **Auth.js 信任主机** | 需设置 `AUTH_TRUST_HOST=true` | Vercel 自动识别，无需设置 |
+| **数据库** | 本地 PostgreSQL / Docker | Vercel Postgres 或外部托管 PostgreSQL，连接串写入 `DATABASE_URL` |
+| **构建产物** | `npm run build` 本地编译 | Vercel 自动构建，CI（GitHub Actions）已覆盖 lint/test/build 三阶段 |
+
+**部署前自查：**
+
+1. 在 Vercel 项目设置中配置全部环境变量（见下方 Checklist）。
+2. 确认 `UPSTASH_REDIS_REST_URL` 为合法 URL（Zod 用 `z.string().url()` 校验）且 `UPSTASH_REDIS_REST_TOKEN` 非空。
+3. GitHub OAuth App 的 Authorization callback URL 需改为生产域名：`https://<your-domain>/api/auth/callback/github`。
+4. `AUTH_SECRET` 使用 `openssl rand -base64 32` 重新生成，勿复用本地开发密钥。
 
 ## License
 
