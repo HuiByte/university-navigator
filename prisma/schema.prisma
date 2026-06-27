@@ -42,7 +42,7 @@ model UserProfile {
   userId     String @id @unique
   major      String // 专业
   grade      String // 年级
-  degree     String // 学位（本科/硕士/博士）
+  degree     String // 学历（专科/本科/硕士/博士）
   goal       String @db.Text // 目标
   strengths  String @db.Text // 优势
   weaknesses String @db.Text // 劣势

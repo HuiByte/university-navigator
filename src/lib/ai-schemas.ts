@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { DEGREE_OPTIONS } from "@/lib/constants"
 
 /**
  * 防御性字符串数组清洗
@@ -58,7 +59,7 @@ export type RoadmapData = z.infer<typeof RoadmapSchema>
 export const generatePlanSchema = z.object({
   major: z.string().min(1, "专业不能为空"),
   grade: z.string().min(1, "年级不能为空"),
-  degree: z.string().min(1, "学历不能为空"),
+  degree: z.enum(DEGREE_OPTIONS, { message: "学历不能为空" }),
   goal: z.string().min(1, "目标不能为空"),
   strengths: z.string().min(1, "优势不能为空"),
   weaknesses: z.string().min(1, "劣势不能为空"),

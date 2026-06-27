@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { DEGREE_OPTIONS } from "@/lib/constants"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,7 +18,7 @@ import { apiFetch } from "@/lib/api-client"
 const planFormSchema = z.object({
   major: z.string().min(1, "请输入你的专业"),
   grade: z.string().min(1, "请选择你的年级"),
-  degree: z.string().min(1, "请选择你的学历"),
+  degree: z.enum(DEGREE_OPTIONS, { message: "请选择你的学历" }),
   goal: z.string().min(1, "请输入你的目标").max(500, "目标描述不超过500字"),
   strengths: z.string().min(1, "请输入你的优点"),
   weaknesses: z.string().min(1, "请输入你的缺点"),
@@ -40,7 +41,7 @@ export default function PlanPage() {
     defaultValues: {
       major: "",
       grade: "",
-      degree: "",
+      degree: undefined,
       goal: "",
       strengths: "",
       weaknesses: "",
@@ -132,9 +133,9 @@ export default function PlanPage() {
               <Label htmlFor="degree">学历</Label>
               <Select id="degree" {...register("degree")}>
                 <option value="">请选择学历</option>
-                <option value="本科">本科</option>
-                <option value="硕士">硕士</option>
-                <option value="博士">博士</option>
+                {DEGREE_OPTIONS.map((degree) => (
+                  <option key={degree} value={degree}>{degree}</option>
+                ))}
               </Select>
               {errors.degree && (
                 <p className="text-sm text-destructive">{errors.degree.message}</p>

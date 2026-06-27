@@ -142,4 +142,54 @@ describe("POST /api/generate-plan", () => {
       expect(mockPrisma.plan.create).not.toHaveBeenCalled()
     })
   })
+
+  describe("场景 4：专科学历生成规划", () => {
+    const associateBody = {
+      ...validBody,
+      degree: "专科" as const,
+      grade: "大二",
+    }
+
+    beforeEach(() => {
+      authMock.loginAs(TEST_USER_ID)
+    })
+
+    it("degree=专科 通过 Zod 校验，API 返回 200 且 AI 调用正常", async () => {
+      const aiText = "这是一份针对专科学历的规划方案，重点包含专升本备考节点..."
+      mockGenerateText.mockResolvedValue({ text: aiText })
+      mockPrisma.userProfile.upsert.mockResolvedValue({
+        userId: TEST_USER_ID,
+        major: "计算机科学",
+        grade: "大二",
+        degree: "专科",
+        goal: "成为全栈工程师",
+        strengths: "逻辑思维强",
+        weaknesses: "英语较弱",
+      })
+      mockPrisma.plan.create.mockResolvedValue({
+        id: "plan-associate-001",
+        userId: TEST_USER_ID,
+        content: aiText,
+        createdAt: new Date(),
+        version: 1,
+        status: "ACTIVE",
+        archivedAt: null,
+      })
+
+      const res = await POST(
+        makeRequest("/api/generate-plan", { method: "POST", body: associateBody })
+      )
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(body.data.plan).toBe(aiText)
+      // 验证 upsert 传入了正确的 degree 值
+      expect(mockPrisma.userProfile.upsert).toHaveBeenCalledTimes(1)
+      const upsertArgs = mockPrisma.userProfile.upsert.mock.calls[0][0]
+      expect(upsertArgs.create.degree).toBe("专科")
+      // 验证 plan.create 被调用
+      expect(mockPrisma.plan.create).toHaveBeenCalledTimes(1)
+    })
+  })
 })
